@@ -7,9 +7,9 @@ import json
 from datetime import datetime
 
 # --- 1. 페이지 및 기본 설정 ---
-st.set_page_config(page_title="지수 종목 확인", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="지수 종목 확인 (Quant AI)", layout="wide", initial_sidebar_state="collapsed")
 
-# [우측 정렬 CSS] 3(현재가), 4(등락률), 5(PEG)열 완벽 우측 정렬
+# 3(현재가), 4(등락률), 5(PEG)열 완벽 우측 정렬 CSS (원형 심볼 제거로 깔끔함 유지)
 st.markdown("""
 <style>
 div[data-testid="stDataEditor"] table th:nth-child(3), div[data-testid="stDataEditor"] table td:nth-child(3),
@@ -20,14 +20,15 @@ div[data-testid="stDataEditor"] table th:nth-child(5), div[data-testid="stDataEd
 </style>
 """, unsafe_allow_html=True)
 
+# 회원님 요청 맞춤형 검색 DB
 SEARCH_DB = {
-    "VKOSPI (한국형 변동성지수)": "^KSVKOSPI", "NASDAQ Biotechnology (NBI)": "^NBI",
-    "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "한국항공우주": "047810.KS",
-    "한화에어로스페이스": "012450.KS", "알테오젠": "196170.KQ", "한화시스템": "272210.KS", 
-    "한화오션": "042660.KS", "HD한국조선해양": "009540.KS", "LS": "006260.KS", 
-    "갤럭시아머니트리": "094480.KQ", "현대차": "005380.KS", "테슬라": "TSLA", 
-    "엔비디아": "NVDA", "애플": "AAPL", "록히드마틴": "LMT",
-    "마이크로소프트": "MSFT", "알파벳": "GOOGL", "아마존": "AMZN"
+    "필라델피아 반도체 (SOX)": "^SOX", "금 선물 (Gold)": "GC=F", "WTI 원유": "CL=F",
+    "NASDAQ Biotechnology (NBI)": "^NBI", "나스닥 100 선물": "NQ=F", "S&P 500 선물": "ES=F",
+    "코스피 200 (선물 대체)": "^KS200", "미국 10년물 국채 금리": "^TNX", 
+    "USD Index (달러인덱스)": "DX-Y.NYB", "미국 CPI (물가연동국채 TIP 대체)": "TIP",
+    "VIX (공포지수)": "^VIX", "장단기금리차 (T10Y2Y)": "CALC_T10Y2Y", "Risk-On 지표 (SPY/TLT)": "CALC_RISKON",
+    "NVDA (엔비디아)": "NVDA", "록히드마틴": "LMT", "한화에어로스페이스": "012450.KS",
+    "HD현대일렉트릭": "267260.KS", "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "알테오젠": "196170.KQ"
 }
 
 # --- 2. 영구 저장 및 메모리 로직 ---
@@ -38,14 +39,8 @@ def load_tickers():
         with open(TICKERS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     else:
-        default_tickers = {
-            "VIX (공포지수)": "^VIX", "필라델피아 반도체": "^SOX", 
-            "VKOSPI (한국형 변동성지수)": "^KSVKOSPI", "NASDAQ Biotechnology (NBI)": "^NBI",
-            "삼성전자": "005930.KS", "한국항공우주": "047810.KS",
-            "한화에어로스페이스": "012450.KS", "알테오젠": "196170.KQ",
-            "NVDA (엔비디아)": "NVDA", "테슬라": "TSLA"
-        }
-        return default_tickers
+        # 회원님의 요청 리스트를 최초 기본값으로 세팅
+        return {k: v for k, v in SEARCH_DB.items()}
 
 def save_tickers(tickers_dict):
     with open(TICKERS_FILE, 'w', encoding='utf-8') as f:
@@ -57,18 +52,38 @@ if 'last_update' not in st.session_state: st.session_state.last_update = "아직
 if 'news_data' not in st.session_state: st.session_state.news_data = []
 if 'checked_items' not in st.session_state: st.session_state.checked_items = []
 
-# ✅ 텍스트 입력 에러 방지용 상태 변수
 if 'form_name' not in st.session_state: st.session_state.form_name = ""
 if 'form_ticker' not in st.session_state: st.session_state.form_ticker = ""
+if 'input_key' not in st.session_state: st.session_state.input_key = 0
 
-# --- 3. 데이터 수집 콜백 및 함수 ---
+# --- 3. 데이터 수집 핵심 함수 (자체 계산 로직 탑재) ---
 @st.cache_data(ttl=60)
 def fetch_single_stock(ticker):
     try:
+        # [자체 수식 1] 장단기 금리차 (10년물 - 2년물)
+        if ticker == "CALC_T10Y2Y":
+            tnx = yf.Ticker("^TNX").history(period="5d")
+            us2y = yf.Ticker("^US2Y").history(period="5d")
+            if not tnx.empty and not us2y.empty:
+                val = tnx['Close'].iloc[-1] - us2y['Close'].iloc[-1]
+                prev = tnx['Close'].iloc[-2] - us2y['Close'].iloc[-2]
+                return float(val), float(val - prev), None # bp 등락폭
+            return 0.0, 0.0, None
+            
+        # [자체 수식 2] Risk-On 지표 (S&P 500 / 미국 20년물 국채 비율)
+        if ticker == "CALC_RISKON":
+            spy = yf.Ticker("SPY").history(period="5d")
+            tlt = yf.Ticker("TLT").history(period="5d")
+            if not spy.empty and not tlt.empty:
+                val = spy['Close'].iloc[-1] / tlt['Close'].iloc[-1]
+                prev = spy['Close'].iloc[-2] / tlt['Close'].iloc[-2]
+                chg = ((val - prev) / prev) * 100
+                return float(val), float(chg), None
+            return 0.0, 0.0, None
+
+        # 일반 티커 처리
         stock = yf.Ticker(ticker)
-        # 휴일 데이터 누락을 방지하기 위해 1달치 확보
         hist = stock.history(period="1mo")
-        
         if len(hist) >= 2:
             current = float(hist['Close'].iloc[-1])
             prev = float(hist['Close'].iloc[-2])
@@ -84,8 +99,8 @@ def fetch_single_stock(ticker):
             try:
                 info = stock.info
                 peg = info.get('pegRatio', info.get('trailingPegRatio', None))
-            except:
-                pass
+            except: pass
+
         return current, change, peg
     except:
         return 0.0, 0.0, None
@@ -113,11 +128,11 @@ def fetch_news():
     st.session_state.news_data = news_list
 
 if not st.session_state.market_data:
-    with st.spinner("데이터 및 지표를 수집 중입니다..."):
+    with st.spinner("퀀트 포트폴리오 데이터를 초기화 중입니다..."):
         fetch_all_data()
         fetch_news()
 
-# --- 4. 순서 이동 및 삭제, 종목 추가 (에러 완벽 방지 콜백) ---
+# --- 4. 순서 이동 및 추가 로직 ---
 def force_editor_rebuild():
     if "edit_left" in st.session_state: del st.session_state["edit_left"]
     if "edit_right" in st.session_state: del st.session_state["edit_right"]
@@ -176,7 +191,6 @@ with col_top2:
 with col_top3:
     st.info(f"마지막 갱신: {st.session_state.last_update}")
 
-# ✅ DB 에러 완벽 해결 (Callback 방식)
 with st.expander("➕ 종목 추가 및 DB 검색", expanded=False):
     def on_db_change():
         choice = st.session_state.db_choice
@@ -194,11 +208,10 @@ with st.expander("➕ 종목 추가 및 DB 검색", expanded=False):
     st.text_input("티커", key="form_ticker", placeholder="예: 005930.KS")
     
     bc1, bc2 = st.columns(2)
-    # on_click 콜백을 통해 에러 없이 값 추가 및 폼 비우기 동시 실행
     bc1.button("➕ 종목 추가", on_click=handle_add_or_mod, use_container_width=True)
     bc2.button("✏️ 종목 수정", on_click=handle_add_or_mod, use_container_width=True)
 
-# --- 6. 실시간 테이블 (알 수 없는 열 삭제 및 완벽 색상 적용) ---
+# --- 6. 실시간 테이블 (원형 심볼 제거 및 색상 유지) ---
 st.subheader("📈 실시간 지표 및 포트폴리오 관리")
 
 ctrl1, ctrl2, ctrl3, ctrl4 = st.columns(4)
@@ -214,21 +227,14 @@ for name, ticker in st.session_state.tickers.items():
     peg = info.get("peg", None)
     
     is_kr = str(ticker).upper().endswith('.KS') or str(ticker).upper().endswith('.KQ')
+    is_index = str(ticker).startswith('^') or "CALC_" in str(ticker)
     
+    # 지수나 소수점이 필요한 종목은 소수점 유지, 한국 주식은 정수
     price_str = f"{int(price):,}" if is_kr else f"{price:,.2f}"
-    chg_str = f"{chg:+.2f}%"
-    peg_str = f"{peg:.2f}" if peg is not None else "-"
     
-    # 기호를 붙여 상승/하락 여부를 문자열 자체에 포함
-    if chg > 0:
-        price_str = f"🔴 {price_str}"
-        chg_str = f"🔴 {chg_str}"
-    elif chg < 0:
-        price_str = f"🔵 {price_str}"
-        chg_str = f"🔵 {chg_str}"
-    else:
-        price_str = f"⚪ {price_str}"
-        chg_str = f"⚪ {chg_str}"
+    # 장단기금리차는 %가 아닌 bp(베이시스 포인트) 또는 %p 개념이므로 기호 분리
+    chg_str = f"{chg:+.2f}%" if ticker != "CALC_T10Y2Y" else f"{chg:+.2f}%p"
+    peg_str = f"{peg:.2f}" if peg is not None else "-"
 
     df_list.append({
         "✅선택": name in st.session_state.checked_items,
@@ -244,15 +250,20 @@ num_left = math.ceil(len(df) / 2) if len(df) > 0 else 0
 df_left = df.iloc[:num_left].copy()
 df_right = df.iloc[num_left:].copy()
 
-# 기호를 감지하여 색상을 변경하는 무적의 함수 (숨김 열 불필요)
-def apply_color(val):
-    if not isinstance(val, str): return ''
-    if '🔴' in val: return 'color: #ff4d4d; font-weight: bold;'
-    if '🔵' in val: return 'color: #4d94ff; font-weight: bold;'
-    return 'color: gray;'
+# +와 - 기호를 읽어 글자 색상을 지정 (심볼 없이 깔끔하게)
+def apply_row_color(row):
+    chg_val = row['등락률']
+    if not isinstance(chg_val, str): color = 'color: gray;'
+    elif chg_val.startswith('+'): color = 'color: #ff4d4d; font-weight: bold;'
+    elif chg_val.startswith('-'): color = 'color: #4d94ff; font-weight: bold;'
+    else: color = 'color: gray;'
+    return [''] * 2 + [color] * 3  # 현재가, 등락률, PEG 3개 열에 색상 적용
 
-styled_left = df_left.style.map(apply_color, subset=['현재가', '등락률'])
-styled_right = df_right.style.map(apply_color, subset=['현재가', '등락률'])
+if not df_left.empty: styled_left = df_left.style.apply(apply_row_color, axis=1)
+else: styled_left = df_left
+
+if not df_right.empty: styled_right = df_right.style.apply(apply_row_color, axis=1)
+else: styled_right = df_right
 
 col_config = {
     "✅선택": st.column_config.CheckboxColumn("선택", width="small"),
@@ -263,18 +274,10 @@ col_config = {
 }
 
 table_col1, table_col2 = st.columns(2)
-
 with table_col1:
-    edited_left = st.data_editor(
-        styled_left, column_config=col_config,
-        disabled=["항목", "현재가", "등락률", "PEG"], hide_index=True, use_container_width=True, key="edit_left"
-    )
-
+    edited_left = st.data_editor(styled_left, column_config=col_config, disabled=["항목", "현재가", "등락률", "PEG"], hide_index=True, use_container_width=True, key="edit_left")
 with table_col2:
-    edited_right = st.data_editor(
-        styled_right, column_config=col_config,
-        disabled=["항목", "현재가", "등락률", "PEG"], hide_index=True, use_container_width=True, key="edit_right"
-    )
+    edited_right = st.data_editor(styled_right, column_config=col_config, disabled=["항목", "현재가", "등락률", "PEG"], hide_index=True, use_container_width=True, key="edit_right")
 
 new_checked_left = edited_left[edited_left["✅선택"] == True]["항목"].tolist() if not edited_left.empty else []
 new_checked_right = edited_right[edited_right["✅선택"] == True]["항목"].tolist() if not edited_right.empty else []
@@ -297,7 +300,7 @@ for news in st.session_state.news_data:
 news_html += "</div>"
 st.markdown(news_html, unsafe_allow_html=True)
 
-# --- 8. AI 시뮬레이션 영역 (VKOSPI, NBI 100% 반영) ---
+# --- 8. AI 시뮬레이션 영역 (매크로 상시 참조 + 개별종목 타겟 분석) ---
 st.subheader("🧠 자율 진화형 AI & 퀀트 포트폴리오 스캐닝")
 sim_col1, sim_col2 = st.columns(2)
 model_sel = sim_col1.selectbox("AI 모델 선택", ["Machine Learning", "LSTM", "Autonomous AI", "Reinforcement Learning", "Sentiment Analysis"])
@@ -312,24 +315,21 @@ if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_contai
             current_date_str = datetime.now().strftime("%Y년 %m월 %d일 %H시 %M분")
             market = st.session_state.market_data
             
-            # 매크로 지표 상시 추출
-            vkospi = market.get("VKOSPI (한국형 변동성지수)", {})
-            vkospi_val = vkospi.get("raw_price", 0.0)
-            vkospi_chg = vkospi.get("raw_change", 0.0)
+            # 1. 핵심 매크로 상시 추출
+            vix_chg = market.get("VIX (공포지수)", {}).get("raw_change", 0.0)
+            sox_chg = market.get("필라델피아 반도체 (SOX)", {}).get("raw_change", 0.0)
+            nbi_chg = market.get("NASDAQ Biotechnology (NBI)", {}).get("raw_change", 0.0)
+            t10y2y_val = market.get("장단기금리차 (T10Y2Y)", {}).get("raw_price", 0.0)
+            ro_chg = market.get("Risk-On 지표 (SPY/TLT)", {}).get("raw_change", 0.0)
             
-            nbi = market.get("NASDAQ Biotechnology (NBI)", {})
-            nbi_chg = nbi.get("raw_change", 0.0)
-
-            sox = market.get("필라델피아 반도체", {})
-            sox_chg = sox.get("raw_change", 0.0)
+            macro_sentiment = "리스크 관리(Risk-Off) 경계 구간" if vix_chg > 0 or ro_chg < 0 else "위험자산 선호(Risk-On) 모멘텀 회복"
             
-            macro_sentiment = "리스크 회피(Risk-Off) 경계 구간" if vkospi_chg > 0 else "위험자산 선호(Risk-On) 모멘텀 회복"
-            
-            # 선택된 개별 종목 퀀트 분석
+            # 2. 선택된 개별 종목 퀀트 스캐닝
+            macro_keywords = ["VIX", "반도체", "NBI", "선물", "금리", "USD", "CPI", "지표", "금", "원유", "T10Y2Y"]
             quant_results = []
+            
             for name in st.session_state.checked_items:
-                # 거시 지표가 선택되었다면 분석에서 제외
-                if any(k in name for k in ["VIX", "VKOSPI", "필라델피아", "NBI", "환율", "국채"]): continue
+                if any(k in name for k in macro_keywords): continue # 매크로 지표는 개별 분석에서 제외
                 
                 info = market.get(name, {})
                 price = info.get("raw_price", 0.0)
@@ -364,33 +364,29 @@ if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_contai
             st.success("데이터 연산 및 시뮬레이션 분석 완료!")
             st.info(f"**기준 일시:** {current_date_str} | **적용 모델:** {model_sel} | **적용 알고리즘:** {algo_sel}")
             
-            nbi_text = f"* **글로벌 바이오 지표 투영:** 나스닥 바이오 지수(NBI)가 전일 대비 {nbi_chg:+.2f}% 변동하며 가중치에 반영되었습니다." if nbi_chg != 0 else ""
-
             st.markdown(f"""
             ### 1. 거시경제 및 시장 변동성 지표 (상시 참조)
-            * **한국형 변동성지수 (VKOSPI):** 현재 {vkospi_val:.2f} (전일대비 {vkospi_chg:+.2f}%). 시장 자금 동향은 **[{macro_sentiment}]** 국면으로 연산되었습니다.
-            * **글로벌 반도체 지수 투영:** 미국 필라델피아 반도체 지수({sox_chg:+.2f}%) 데이터가 테크 섹터 스코어링에 반영되었습니다.
-            {nbi_text}
+            * **시장 센티먼트:** 공포지수(VIX) 및 Risk-On 지표 종합 결과, 현재 시장 자금 동향은 **[{macro_sentiment}]** 국면으로 연산되었습니다.
+            * **핵심 지표:** 미국 장단기 금리차는 현재 **{t10y2y_val:+.2f}%p**를 기록 중이며, 반도체 지수({sox_chg:+.2f}%)와 바이오 지수({nbi_chg:+.2f}%) 데이터가 알고리즘 스코어링에 반영되었습니다.
             
             ### 2. 🎯 타겟 종목 퀀트 알고리즘 심층 분석
             """)
             
             if len(quant_results) == 0:
-                st.markdown("* 선택하신 종목 중 분석 가능한 개별 주식 데이터가 없습니다. (거시 지표는 분석 대상에서 제외됩니다.)")
+                st.markdown("* 선택하신 종목 중 분석 가능한 개별 주식 데이터가 없습니다. (거시 지표는 개별 분석에서 자동 제외됩니다.)")
             else:
                 for res in quant_results:
                     n = res['name']
                     p = f"{res['price']:,.0f}" if res['price'] > 1000 else f"{res['price']:,.2f}"
                     c = res['change']
                     peg_str = f"{res['peg']:.2f}" if res['peg'] is not None else "데이터 미수집"
-                    color_dot = "🔴" if c > 0 else "🔵" if c < 0 else "⚪"
                     
                     st.markdown(f"""
-                    * **{n}**: 현재가 **{p}원** ({color_dot} **{c:+.2f}%**)
+                    * **{n}**: 현재가 **{p}원** (**{c:+.2f}%**)
                       * **지표분석:** PEG = {peg_str} | 종합 퀀트 스코어 = **{res['score']}점 / 100점**
                       * **Action Plan:** **{res['signal']}** ({res['eval']})
                     """)
             
-            st.markdown(f"> **💡 AI 종합 평가:** 선택된 종목군은 현재 산출된 VKOSPI와 PEG 펀더멘털을 기반으로 기계적이고 냉정한 트레이딩 대응이 요구됩니다.")
+            st.markdown(f"> **💡 AI 종합 평가:** 선택된 개별 종목군은 현재 산출된 시장 센티먼트와 PEG 펀더멘털을 기반으로 볼 때, 감정을 배제한 냉정한 트레이딩 대응이 요구됩니다.")
 
 st.markdown("<br><hr style='border: 1px solid #3a3a52;'><p style='text-align: right; color: #a1a1bb; font-style: italic; font-weight: bold;'>모두가 부자 되길 바라는 주린(인) 김병권</p>", unsafe_allow_html=True)
