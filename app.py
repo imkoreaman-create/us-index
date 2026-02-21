@@ -3,10 +3,25 @@ import yfinance as yf
 import feedparser
 import pandas as pd
 import math
+import os
+import json
 from datetime import datetime
 
 # --- 1. 페이지 및 기본 설정 ---
 st.set_page_config(page_title="지수 종목 확인", layout="wide", initial_sidebar_state="collapsed")
+
+# [핵심 수정 1] 강제 우측 정렬 CSS 주입
+st.markdown("""
+<style>
+/* 데이터 에디터의 3번째(현재가), 4번째(등락률) 열 텍스트 우측 정렬 강제 적용 */
+div[data-testid="stDataEditor"] table th:nth-child(3),
+div[data-testid="stDataEditor"] table td:nth-child(3),
+div[data-testid="stDataEditor"] table th:nth-child(4),
+div[data-testid="stDataEditor"] table td:nth-child(4) {
+    text-align: right !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 SEARCH_DB = {
     "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "한국항공우주": "047810.KS",
@@ -16,21 +31,34 @@ SEARCH_DB = {
     "마이크로소프트": "MSFT", "알파벳": "GOOGL", "아마존": "AMZN"
 }
 
-# --- 2. 메모리(Session State) 초기화 ---
-if 'tickers' not in st.session_state:
-    st.session_state.tickers = {
-        "VIX (공포지수)": "^VIX", "필라델피아 반도체": "^SOX", "SMH": "SMH", 
-        "원달러 환율": "KRW=X", "미국 10년물 국채": "^TNX",
-        "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "한국항공우주": "047810.KS",
-        "한화시스템": "272210.KS", "한화오션": "042660.KS", "HD한국조선해양": "009540.KS",
-        "LS": "006260.KS", "갤럭시아머니트리": "094480.KQ",
-        "NVDA (엔비디아)": "NVDA", "LMT (록히드마틴)": "LMT"
-    }
+# --- 2. 영구 저장 및 메모리(Session State) 초기화 ---
+TICKERS_FILE = "my_tickers.json"
+
+def load_tickers():
+    if os.path.exists(TICKERS_FILE):
+        with open(TICKERS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    else:
+        default_tickers = {
+            "VIX (공포지수)": "^VIX", "필라델피아 반도체": "^SOX", "SMH": "SMH", 
+            "원달러 환율": "KRW=X", "미국 10년물 국채": "^TNX",
+            "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "한국항공우주": "047810.KS",
+            "한화시스템": "272210.KS", "한화오션": "042660.KS", "HD한국조선해양": "009540.KS",
+            "LS": "006260.KS", "갤럭시아머니트리": "094480.KQ",
+            "NVDA (엔비디아)": "NVDA", "LMT (록히드마틴)": "LMT"
+        }
+        with open(TICKERS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(default_tickers, f, ensure_ascii=False, indent=4)
+        return default_tickers
+
+def save_tickers(tickers_dict):
+    with open(TICKERS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(tickers_dict, f, ensure_ascii=False, indent=4)
+
+if 'tickers' not in st.session_state: st.session_state.tickers = load_tickers()
 if 'market_data' not in st.session_state: st.session_state.market_data = {}
 if 'last_update' not in st.session_state: st.session_state.last_update = "아직 업데이트되지 않음"
 if 'news_data' not in st.session_state: st.session_state.news_data = []
-
-# ✅ 이동 시 체크박스 상태가 풀리지 않도록 기억하는 메모리
 if 'checked_items' not in st.session_state: st.session_state.checked_items = []
 
 # --- 3. 데이터 수집 핵심 함수 ---
@@ -88,9 +116,8 @@ if not st.session_state.market_data:
         fetch_all_data()
         fetch_news()
 
-# --- 4. 순서 이동 및 삭제 로직 ---
+# --- 4. 순서 이동 및 삭제 로직 (파일 저장 연동) ---
 def force_editor_rebuild():
-    """데이터 에디터가 예전 줄 번호(인덱스)의 체크를 기억하는 것을 강제로 삭제하여 버그 방지"""
     if "edit_left" in st.session_state: del st.session_state["edit_left"]
     if "edit_right" in st.session_state: del st.session_state["edit_right"]
 
@@ -109,6 +136,7 @@ def move_items(direction):
                 items[i], items[i+1] = items[i+1], items[i]
                 
     st.session_state.tickers = dict(items)
+    save_tickers(st.session_state.tickers) # 파일에 즉시 저장
     force_editor_rebuild()
 
 def delete_items():
@@ -119,39 +147,35 @@ def delete_items():
         if name in st.session_state.market_data:
             del st.session_state.market_data[name]
     st.session_state.checked_items = [] 
+    save_tickers(st.session_state.tickers) # 파일에 즉시 저장
     force_editor_rebuild()
 
 # --- 5. UI 화면 렌더링 ---
 st.title("📱 지수 종목 확인")
 st.markdown("<span style='color:gray;'>자율 진화형 퀀트 분석 및 실시간 포트폴리오 모니터링 시스템</span>", unsafe_allow_html=True)
 
-# [자동고침 주기 설정 및 컨트롤 패널]
+# [자동고침 주기 설정]
 refresh_opts = {"끄기": 0, "1분마다": 60, "5분마다": 300, "10분마다": 600}
 
-col_btn1, col_btn2, col_btn3, col_btn4 = st.columns([1.2, 1, 1, 1.5])
-with col_btn1:
+col_top1, col_top2, col_top3 = st.columns([1.2, 1, 1.5])
+with col_top1:
     refresh_sel = st.selectbox("⏱️ 자동고침 설정", list(refresh_opts.keys()), label_visibility="collapsed")
     if refresh_opts[refresh_sel] > 0:
         st.markdown(f"<meta http-equiv='refresh' content='{refresh_opts[refresh_sel]}'>", unsafe_allow_html=True)
-with col_btn2:
+with col_top2:
     if st.button("🔄 전체 새로고침", use_container_width=True):
         fetch_all_data()
         fetch_news()
         st.rerun()
-with col_btn3:
-    if st.button("📰 뉴스 새로고침", use_container_width=True):
-        fetch_news()
-        st.rerun()
-with col_btn4:
+with col_top3:
     st.info(f"마지막 갱신: {st.session_state.last_update}")
 
-# [오류를 해결한 완벽한 종목 추가/수정 패널]
+# [종목 추가/수정 패널]
 with st.expander("➕ 새로운 종목 추가 및 수정", expanded=False):
     st.markdown("**자동완성 DB 검색** (선택 시 아래 입력칸에 자동으로 들어갑니다)")
     
     selected_db = st.selectbox("DB 선택", ["직접 입력"] + list(SEARCH_DB.keys()), label_visibility="collapsed")
     
-    # DB 선택 시 기본값 자동 세팅
     def_name = "" if selected_db == "직접 입력" else selected_db
     def_ticker = "" if selected_db == "직접 입력" else SEARCH_DB[selected_db]
     
@@ -165,6 +189,7 @@ with st.expander("➕ 새로운 종목 추가 및 수정", expanded=False):
             st.session_state.tickers[new_name] = new_ticker
             price, change, raw = fetch_single_stock(new_ticker)
             st.session_state.market_data[new_name] = {"price": price, "change": change, "raw_price": raw}
+            save_tickers(st.session_state.tickers) # 파일에 즉시 저장
             st.success(f"'{new_name}' 추가 완료!")
             force_editor_rebuild()
             st.rerun()
@@ -174,11 +199,12 @@ with st.expander("➕ 새로운 종목 추가 및 수정", expanded=False):
             st.session_state.tickers[new_name] = new_ticker
             price, change, raw = fetch_single_stock(new_ticker)
             st.session_state.market_data[new_name] = {"price": price, "change": change, "raw_price": raw}
+            save_tickers(st.session_state.tickers) # 파일에 즉시 저장
             st.success(f"'{new_name}' 수정 완료!")
             force_editor_rebuild()
             st.rerun()
 
-# --- 6. 실시간 테이블 (우측 정렬 및 무한 이동 가능) ---
+# --- 6. 실시간 테이블 ---
 st.subheader("📈 실시간 지표 및 포트폴리오 관리")
 st.write("표 안의 **[✅선택]** 체크박스를 누른 후 아래 이동 버튼을 클릭하세요.")
 
@@ -214,16 +240,15 @@ num_left = math.ceil(len(df) / 2) if len(df) > 0 else 0
 df_left = df.iloc[:num_left].reset_index(drop=True)
 df_right = df.iloc[num_left:].reset_index(drop=True)
 
-# ✅ 가격과 등락률 우측 정렬 CSS 스크립트 적용
+# 색상 적용 
 def color_align(val):
-    if not isinstance(val, str): return 'text-align: right;'
-    if '🔴' in val: return 'color: #ff4d4d; font-weight: bold; text-align: right;'
-    if '🔵' in val: return 'color: #4d94ff; font-weight: bold; text-align: right;'
-    return 'color: gray; text-align: right;'
+    if not isinstance(val, str): return ''
+    if '🔴' in val: return 'color: #ff4d4d; font-weight: bold;'
+    if '🔵' in val: return 'color: #4d94ff; font-weight: bold;'
+    return 'color: gray;'
 
-style_props = {'text-align': 'right'}
-styled_left = df_left.style.set_properties(subset=['현재가', '등락률'], **style_props).map(color_align, subset=['등락률'])
-styled_right = df_right.style.set_properties(subset=['현재가', '등락률'], **style_props).map(color_align, subset=['등락률'])
+styled_left = df_left.style.map(color_align, subset=['등락률'])
+styled_right = df_right.style.map(color_align, subset=['등락률'])
 
 table_col1, table_col2 = st.columns(2)
 
@@ -247,13 +272,20 @@ with table_col2:
         key="edit_right"
     )
 
-# 테이블에서 체크된 항목 실시간 동기화
 new_checked_left = edited_left[edited_left["✅선택"] == True]["항목"].tolist() if not edited_left.empty else []
 new_checked_right = edited_right[edited_right["✅선택"] == True]["항목"].tolist() if not edited_right.empty else []
 st.session_state.checked_items = new_checked_left + new_checked_right
 
-# --- 7. 실시간 뉴스 영역 ---
-st.subheader("📰 24시간 내 최신 경제/특징주 뉴스")
+# --- 7. 실시간 뉴스 영역 (버튼 위치 수정) ---
+st.markdown("<br>", unsafe_allow_html=True)
+col_news_title, col_news_btn = st.columns([4, 1])
+with col_news_title:
+    st.subheader("📰 24시간 내 최신 경제/특징주 뉴스")
+with col_news_btn:
+    if st.button("🔄 뉴스 새로고침", key="news_refresh_btn", use_container_width=True):
+        fetch_news()
+        st.rerun()
+
 news_html = "<div style='background-color:#252538; padding:15px; border-radius:8px; border:1px solid #3a3a52; margin-bottom: 20px;'>"
 for news in st.session_state.news_data:
     color = "#ffb84d" if "한국" in news['source'] else "#82b1ff"
