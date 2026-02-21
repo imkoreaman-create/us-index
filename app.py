@@ -227,9 +227,7 @@ for name, ticker in st.session_state.tickers.items():
     peg = info.get("peg", None)
     
     is_kr = str(ticker).upper().endswith('.KS') or str(ticker).upper().endswith('.KQ')
-    is_index = str(ticker).startswith('^') or "CALC_" in str(ticker)
     
-    # 지수나 소수점이 필요한 종목은 소수점 유지, 한국 주식은 정수
     price_str = f"{int(price):,}" if is_kr else f"{price:,.2f}"
     
     # 장단기금리차는 %가 아닌 bp(베이시스 포인트) 또는 %p 개념이므로 기호 분리
@@ -325,7 +323,7 @@ if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_contai
             macro_sentiment = "리스크 관리(Risk-Off) 경계 구간" if vix_chg > 0 or ro_chg < 0 else "위험자산 선호(Risk-On) 모멘텀 회복"
             
             # 2. 선택된 개별 종목 퀀트 스캐닝
-            macro_keywords = ["VIX", "반도체", "NBI", "선물", "금리", "USD", "CPI", "지표", "금", "원유", "T10Y2Y"]
+            macro_keywords = ["VIX", "반도체", "NBI", "선물", "금리", "USD", "CPI", "지표", "금", "원유", "T10Y2Y", "코스피"]
             quant_results = []
             
             for name in st.session_state.checked_items:
