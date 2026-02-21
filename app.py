@@ -5,10 +5,9 @@ import pandas as pd
 import math
 from datetime import datetime
 
-# --- 1. 페이지 및 기본 설정 (모바일 반응형) ---
+# --- 1. 페이지 및 기본 설정 ---
 st.set_page_config(page_title="Pro-Market AI Terminal", layout="wide", initial_sidebar_state="collapsed")
 
-# 종목 검색 자동완성을 위한 내부 DB
 SEARCH_DB = {
     "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "한국항공우주": "047810.KS",
     "한화시스템": "272210.KS", "한화오션": "042660.KS", "HD한국조선해양": "009540.KS",
@@ -17,8 +16,6 @@ SEARCH_DB = {
     "마이크로소프트": "MSFT", "알파벳": "GOOGL", "아마존": "AMZN"
 }
 
-# --- 2. 세션 상태(Session State) 초기화 ---
-# 클라우드 환경에서도 새로고침 시 내 포트폴리오 순서가 유지되도록 설정합니다.
 if 'tickers' not in st.session_state:
     st.session_state.tickers = {
         "VIX (공포지수)": "^VIX", "필라델피아 반도체": "^SOX", "SMH": "SMH", 
@@ -34,10 +31,9 @@ if 'last_update' not in st.session_state:
     st.session_state.last_update = "아직 업데이트되지 않음"
 if 'news_data' not in st.session_state:
     st.session_state.news_data = []
-if 'selected_for_move' not in st.session_state:
-    st.session_state.selected_for_move = []
 
-# --- 3. 데이터 수집 핵심 함수 ---
+# --- 2. 데이터 수집 핵심 함수 ---
+@st.cache_data(ttl=60)
 def fetch_single_stock(ticker):
     try:
         stock = yf.Ticker(ticker)
@@ -52,7 +48,6 @@ def fetch_single_stock(ticker):
         else:
             return "-", 0.0, None
 
-        # 한국 주식 소수점 제거 포맷팅
         if ticker.upper().endswith('.KS') or ticker.upper().endswith('.KQ'):
             price_str = f"{int(current):,}"
         else:
@@ -87,51 +82,46 @@ def fetch_news():
             pass
     st.session_state.news_data = news_list
 
-# 앱 최초 실행 시 데이터 1회 로드
 if not st.session_state.market_data:
     with st.spinner("초기 데이터를 불러오는 중입니다..."):
         fetch_all_data()
         fetch_news()
 
-# --- 4. 순서 변경 로직 ---
-def move_items(direction):
-    names = st.session_state.selected_for_move
-    if not names: return
+# --- 3. 체크박스 순서 이동 및 삭제 로직 ---
+def get_checked_names(edited_left, edited_right):
+    names = []
+    if not edited_left.empty:
+        names += edited_left[edited_left["✅선택"] == True]["항목"].tolist()
+    if not edited_right.empty:
+        names += edited_right[edited_right["✅선택"] == True]["항목"].tolist()
+    return names
+
+def move_items(direction, selected_names):
+    if not selected_names: return
     items = list(st.session_state.tickers.items())
     
     if direction == "up":
         for i in range(1, len(items)):
-            if items[i][0] in names and items[i-1][0] not in names:
+            if items[i][0] in selected_names and items[i-1][0] not in selected_names:
                 items[i], items[i-1] = items[i-1], items[i]
     elif direction == "down":
         for i in range(len(items)-2, -1, -1):
-            if items[i][0] in names and items[i+1][0] not in names:
+            if items[i][0] in selected_names and items[i+1][0] not in selected_names:
                 items[i], items[i+1] = items[i+1], items[i]
-    elif direction == "top":
-        selected = [item for item in items if item[0] in names]
-        unselected = [item for item in items if item[0] not in names]
-        items = selected + unselected
-    elif direction == "bottom":
-        selected = [item for item in items if item[0] in names]
-        unselected = [item for item in items if item[0] not in names]
-        items = unselected + selected
-
+                
     st.session_state.tickers = dict(items)
 
-def delete_items():
-    names = st.session_state.selected_for_move
-    for name in names:
+def delete_items(selected_names):
+    for name in selected_names:
         if name in st.session_state.tickers:
             del st.session_state.tickers[name]
         if name in st.session_state.market_data:
             del st.session_state.market_data[name]
-    st.session_state.selected_for_move = []
 
-# --- 5. UI 화면 렌더링 ---
+# --- 4. UI 화면 렌더링 ---
 st.title("📱 Pro-Market AI Terminal")
-st.markdown("<span style='color:gray;'>자율 진화형 퀀트 분석 및 실시간 포트폴리오 모니터링 시스템</span>", unsafe_allow_html=True)
+st.markdown("<span style='color:gray;'>자율 진화형 퀀트 분석 및 실시간 포트폴리오 모니터링 (Web Ver.)</span>", unsafe_allow_html=True)
 
-# [상단 패널] 새로고침
 col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
 with col_btn1:
     if st.button("🔄 전체 데이터 새로고침", use_container_width=True):
@@ -145,89 +135,102 @@ with col_btn2:
 with col_btn3:
     st.info(f"마지막 갱신: {st.session_state.last_update}")
 
-# [모바일 최적화 컨트롤 패널] 아코디언 메뉴
-with st.expander("⚙️ 종목 관리 (추가 / 수정 / 순서변경 / 삭제)", expanded=False):
-    tab1, tab2 = st.tabs(["➕ 종목 추가 및 수정", "↕️ 선택 항목 이동 및 삭제"])
+with st.expander("➕ 새로운 종목 추가 및 수정", expanded=False):
+    st.markdown("**자동완성 DB 검색** (선택 시 아래 입력칸에 자동 입력됩니다)")
+    selected_db = st.selectbox("DB 선택", ["직접 입력"] + list(SEARCH_DB.keys()), label_visibility="collapsed")
     
-    with tab1:
-        st.markdown("**자동완성 DB 검색** (선택 시 아래 입력칸에 자동 입력됩니다)")
-        selected_db = st.selectbox("DB 선택", ["직접 입력"] + list(SEARCH_DB.keys()), label_visibility="collapsed")
-        
-        c1, c2, c3 = st.columns([2, 2, 1])
-        def_name = "" if selected_db == "직접 입력" else selected_db
-        def_ticker = "" if selected_db == "직접 입력" else SEARCH_DB[selected_db]
-        
-        new_name = c1.text_input("종목명", value=def_name, placeholder="예: 삼성전자")
-        new_ticker = c2.text_input("티커", value=def_ticker, placeholder="예: 005930.KS")
-        
-        if c3.button("적용", use_container_width=True):
-            if new_name and new_ticker:
-                st.session_state.tickers[new_name] = new_ticker
-                # 개별 데이터만 즉시 패치하여 속도 향상
-                price, change, raw = fetch_single_stock(new_ticker)
-                st.session_state.market_data[new_name] = {"price": price, "change": change, "raw_price": raw}
-                st.success(f"'{new_name}' 적용 완료!")
-                st.rerun()
-
-    with tab2:
-        # 스마트폰 터치에 최적화된 다중 선택(Multi-select) UI
-        selected_items = st.multiselect("이동하거나 삭제할 종목을 여러 개 선택하세요:", list(st.session_state.tickers.keys()), default=st.session_state.selected_for_move)
-        st.session_state.selected_for_move = selected_items
-        
-        mc1, mc2, mc3, mc4, mc5 = st.columns(5)
-        if mc1.button("🔼 위로", use_container_width=True):
-            move_items("up")
-            st.rerun()
-        if mc2.button("🔽 아래로", use_container_width=True):
-            move_items("down")
-            st.rerun()
-        if mc3.button("⏫ 맨 위로", use_container_width=True):
-            move_items("top")
-            st.rerun()
-        if mc4.button("⏬ 맨 아래로", use_container_width=True):
-            move_items("bottom")
-            st.rerun()
-        if mc5.button("🗑️ 일괄 삭제", type="primary", use_container_width=True):
-            delete_items()
+    c1, c2, c3 = st.columns([2, 2, 1])
+    def_name = "" if selected_db == "직접 입력" else selected_db
+    def_ticker = "" if selected_db == "직접 입력" else SEARCH_DB[selected_db]
+    
+    new_name = c1.text_input("종목명", value=def_name, placeholder="예: 삼성전자")
+    new_ticker = c2.text_input("티커", value=def_ticker, placeholder="예: 005930.KS")
+    
+    if c3.button("적용", use_container_width=True):
+        if new_name and new_ticker:
+            st.session_state.tickers[new_name] = new_ticker
+            price, change, raw = fetch_single_stock(new_ticker)
+            st.session_state.market_data[new_name] = {"price": price, "change": change, "raw_price": raw}
+            st.success(f"'{new_name}' 적용 완료!")
             st.rerun()
 
-# --- 6. 실시간 지표 테이블 (모바일 자동 스태킹) ---
-st.subheader("📈 실시간 지표 및 포트폴리오")
+# --- 5. 실시간 테이블 (체크박스 기능 적용) ---
+st.subheader("📈 실시간 지표 및 포트폴리오 관리")
+st.write("표 안의 **[✅선택]** 체크박스를 누른 후 아래 버튼을 클릭하세요.")
 
-def make_df(items):
-    data = []
-    for name, _ in items:
-        info = st.session_state.market_data.get(name, {})
-        data.append({
-            "항목": name, 
-            "현재가": info.get("price", "-"), 
-            "등락률(%)": info.get("change", 0.0)
-        })
-    return pd.DataFrame(data)
+# [순서 이동 & 삭제 컨트롤 버튼]
+ctrl1, ctrl2, ctrl3, ctrl4 = st.columns(4)
 
-def color_change(val):
-    if val == 0.0 or val == "-": return 'color: gray;'
-    elif float(val) > 0: return 'color: #ff4d4d; font-weight: bold;'
-    else: return 'color: #4d94ff; font-weight: bold;'
+df_list = []
+for name, _ in st.session_state.tickers.items():
+    info = st.session_state.market_data.get(name, {})
+    chg = info.get("change", 0.0)
+    
+    # 웹 환경에 맞춘 직관적인 색상 이모지 적용
+    if chg > 0: chg_str = f"🔴 +{chg:.2f}%"
+    elif chg < 0: chg_str = f"🔵 {chg:.2f}%"
+    else: chg_str = f"⚪ 0.00%"
 
-items_list = list(st.session_state.tickers.items())
-num_left = math.ceil(len(items_list) / 2)
-left_items = items_list[:num_left]
-right_items = items_list[num_left:]
+    df_list.append({
+        "✅선택": False,
+        "항목": name, 
+        "현재가": info.get("price", "-"), 
+        "등락률": chg_str
+    })
+
+df = pd.DataFrame(df_list)
+num_left = math.ceil(len(df) / 2) if len(df) > 0 else 0
+df_left = df.iloc[:num_left].reset_index(drop=True)
+df_right = df.iloc[num_left:].reset_index(drop=True)
 
 table_col1, table_col2 = st.columns(2)
 
+# Streamlit Data Editor를 사용해 표 내부에 실제 체크박스 생성
 with table_col1:
-    if left_items:
-        df_left = make_df(left_items)
-        st.dataframe(df_left.style.map(color_change, subset=['등락률(%)']).format({'등락률(%)': "{:+.2f}"}), use_container_width=True, hide_index=True)
+    edited_left = st.data_editor(
+        df_left, 
+        column_config={"✅선택": st.column_config.CheckboxColumn("✅선택", default=False)},
+        disabled=["항목", "현재가", "등락률"], 
+        hide_index=True, 
+        use_container_width=True,
+        key="edit_left"
+    )
 
 with table_col2:
-    if right_items:
-        df_right = make_df(right_items)
-        st.dataframe(df_right.style.map(color_change, subset=['등락률(%)']).format({'등락률(%)': "{:+.2f}"}), use_container_width=True, hide_index=True)
+    edited_right = st.data_editor(
+        df_right, 
+        column_config={"✅선택": st.column_config.CheckboxColumn("✅선택", default=False)},
+        disabled=["항목", "현재가", "등락률"], 
+        hide_index=True, 
+        use_container_width=True,
+        key="edit_right"
+    )
 
-# --- 7. 실시간 뉴스 영역 ---
+# 버튼 동작 로직 처리
+checked_names = get_checked_names(edited_left, edited_right)
+
+if ctrl1.button("🔼 위로 이동", use_container_width=True):
+    if checked_names:
+        move_items("up", checked_names)
+        st.rerun()
+    else:
+        st.warning("먼저 체크박스를 선택하세요.")
+
+if ctrl2.button("🔽 아래로 이동", use_container_width=True):
+    if checked_names:
+        move_items("down", checked_names)
+        st.rerun()
+    else:
+        st.warning("먼저 체크박스를 선택하세요.")
+
+if ctrl3.button("🗑️ 선택 삭제", use_container_width=True):
+    if checked_names:
+        delete_items(checked_names)
+        st.rerun()
+    else:
+        st.warning("먼저 체크박스를 선택하세요.")
+
+# --- 6. 실시간 뉴스 영역 ---
 st.subheader("📰 24시간 내 최신 경제/특징주 뉴스")
 news_html = "<div style='background-color:#252538; padding:15px; border-radius:8px; border:1px solid #3a3a52; margin-bottom: 20px;'>"
 for news in st.session_state.news_data:
@@ -236,7 +239,7 @@ for news in st.session_state.news_data:
 news_html += "</div>"
 st.markdown(news_html, unsafe_allow_html=True)
 
-# --- 8. AI 시뮬레이션 영역 (동적 연동) ---
+# --- 7. AI 시뮬레이션 영역 ---
 st.subheader("🧠 자율 진화형 AI & 포트폴리오 최적화 알고리즘")
 sim_col1, sim_col2 = st.columns(2)
 model_sel = sim_col1.selectbox("AI 모델 선택", ["Machine Learning", "LSTM", "Autonomous AI", "Reinforcement Learning", "Sentiment Analysis"])
@@ -244,21 +247,18 @@ algo_sel = sim_col2.selectbox("전략 알고리즘 선택", ["Quant 분석 AI", 
 
 if st.button("▶ 실시간 시뮬레이션 연산 실행", use_container_width=True, type="primary"):
     with st.spinner('Overfitting 검증 및 자율 진화 알고리즘 연산 중...'):
-        
         current_date_str = datetime.now().strftime("%Y년 %m월 %d일 %H시 %M분")
         
-        # 실제 데이터 추출
         vix_info = st.session_state.market_data.get("VIX (공포지수)", {})
         sox_info = st.session_state.market_data.get("필라델피아 반도체", {})
         sam_info = st.session_state.market_data.get("삼성전자", {})
         kai_info = st.session_state.market_data.get("한국항공우주", {})
         
-        vix_change = vix_info.get("change", 0.0)
-        sox_change = sox_info.get("change", 0.0)
+        vix_change = vix_info.get("change", 0.0) if vix_info.get("change") is not None else 0.0
+        sox_change = sox_info.get("change", 0.0) if sox_info.get("change") is not None else 0.0
         sam_price = sam_info.get("raw_price", 0)
         kai_price = kai_info.get("raw_price", 0)
         
-        # 매크로 연산 로직
         macro_sentiment = "안전자산 선호(Risk-Off) 회피 심리" if vix_change > 0 else "위험자산 선호(Risk-On) 심리 회복"
         semi_forecast = "수급 이탈 경계구간" if sox_change < 0 else "강한 상승 모멘텀 동조화"
         
@@ -267,7 +267,7 @@ if st.button("▶ 실시간 시뮬레이션 연산 실행", use_container_width=
         
         if sam_price:
             sam_status = "<span style='color:#ff4d4d;'>상회(돌파)</span>" if sam_price >= sam_ref else "<span style='color:#4d94ff;'>하회(이탈)</span>"
-            sam_text = f"현재가 <b>{int(sam_price):,}원</b>으로, 핵심 기술적 마디가(182,400원)를 {sam_status}하며 시장 방향성을 리드 중입니다."
+            sam_text = f"현재가 <b>{int(sam_price):,}원</b>으로, 핵심 마디가(182,400원)를 {sam_status}하며 방향성을 리드 중입니다."
         else:
             sam_text = "현재 시세 데이터 수집 지연으로 연산 대기 중."
 
@@ -287,25 +287,24 @@ if st.button("▶ 실시간 시뮬레이션 연산 실행", use_container_width=
         
         <b>1. 자율 진화 및 Overfitting 검증:</b>
         <ul>
-          <li>선택하신 <b>{model_sel}</b> 모델이 실시간 데이터 노이즈를 필터링하고 Overfitting(과적합) 자체 검증을 완료했습니다.</li>
-          <li><b>{algo_sel}</b> 기반 최적화 연산에 현재 VIX({vix_change:+.2f}%) 및 반도체 지수({sox_change:+.2f}%) 가중치가 실시간 반영되었습니다.</li>
+          <li>선택하신 <b>{model_sel}</b> 모델이 실시간 데이터 노이즈를 필터링하고 Overfitting 자체 검증을 완료했습니다.</li>
+          <li><b>{algo_sel}</b> 연산에 현재 VIX({vix_change:+.2f}%) 및 반도체 지수({sox_change:+.2f}%) 가중치가 반영되었습니다.</li>
         </ul>
         
         <b>2. 거시경제 매크로 (Macro & Sentiment):</b>
         <ul>
-          <li>현재 글로벌 시장의 자금 동향은 <b>[{macro_sentiment}]</b> 국면으로 분석됩니다.</li>
-          <li>미국 반도체 지수의 시계열 투영 결과, 국내 대형 반도체 섹터는 <b>[{semi_forecast}]</b> 시그널이 도출되었습니다.</li>
+          <li>현재 글로벌 시장 자금 동향은 <b>[{macro_sentiment}]</b> 국면으로 분석됩니다.</li>
+          <li>미국 반도체 지수 투영 결과, 국내 대형 반도체 섹터는 <b>[{semi_forecast}]</b> 시그널이 도출되었습니다.</li>
         </ul>
         
         <b>3. 주요 편입 종목 및 밸류체인 심층 분석 (Actionable Insight):</b>
         <ul>
           <li><b>삼성전자:</b> {sam_text}</li>
-          <li><b>우주/방산/조선:</b> KAI는 {kai_text} 해당 흐름에 따라 <b>한화시스템, 한화오션, HD한국조선해양</b> 등 관련 밸류체인으로의 자본 쏠림 연산 확률이 고도화되었습니다.</li>
-          <li><b>개별 모멘텀:</b> 지수 파동과 무관한 <b>LS, 갤럭시아머니트리</b> 등은 <b>{algo_sel}</b> 로직에 입각해 당일 거래량 폭증 시 짧은 호흡의 단기 트레이딩 진입이 유효합니다.</li>
+          <li><b>우주/방산/조선:</b> KAI는 {kai_text} 해당 흐름에 따라 <b>한화시스템, 한화오션, HD한국조선해양</b> 등 관련 밸류체인으로의 연산 확률이 고도화되었습니다.</li>
+          <li><b>개별 모멘텀:</b> 지수 파동과 무관한 <b>LS, 갤럭시아머니트리</b> 등은 <b>{algo_sel}</b> 로직에 입각해 당일 단기 트레이딩 진입이 유효합니다.</li>
         </ul>
         </div>
         """
         st.markdown(report, unsafe_allow_html=True)
 
-# --- 9. 시그니처 워터마크 ---
 st.markdown("<br><hr style='border: 1px solid #3a3a52;'><p style='text-align: right; color: #a1a1bb; font-style: italic; font-weight: bold;'>모두가 부자 되길 바라는 주린(인) 김병권</p>", unsafe_allow_html=True)
