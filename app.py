@@ -30,11 +30,8 @@ if 'market_data' not in st.session_state: st.session_state.market_data = {}
 if 'last_update' not in st.session_state: st.session_state.last_update = "아직 업데이트되지 않음"
 if 'news_data' not in st.session_state: st.session_state.news_data = []
 
-# ✅ 이동 시 체크박스 상태가 풀리지 않도록 기억하는 메모리 추가
+# ✅ 이동 시 체크박스 상태가 풀리지 않도록 기억하는 메모리
 if 'checked_items' not in st.session_state: st.session_state.checked_items = []
-# ✅ 자동완성 입력칸 동기화를 위한 메모리 추가
-if 'form_name' not in st.session_state: st.session_state.form_name = ""
-if 'form_ticker' not in st.session_state: st.session_state.form_ticker = ""
 
 # --- 3. 데이터 수집 핵심 함수 ---
 @st.cache_data(ttl=60)
@@ -91,7 +88,12 @@ if not st.session_state.market_data:
         fetch_all_data()
         fetch_news()
 
-# --- 4. 순서 이동 및 삭제 로직 (체크박스 기억 로직 연동) ---
+# --- 4. 순서 이동 및 삭제 로직 ---
+def force_editor_rebuild():
+    """데이터 에디터가 예전 줄 번호(인덱스)의 체크를 기억하는 것을 강제로 삭제하여 버그 방지"""
+    if "edit_left" in st.session_state: del st.session_state["edit_left"]
+    if "edit_right" in st.session_state: del st.session_state["edit_right"]
+
 def move_items(direction):
     names = st.session_state.checked_items
     if not names: return
@@ -107,6 +109,7 @@ def move_items(direction):
                 items[i], items[i+1] = items[i+1], items[i]
                 
     st.session_state.tickers = dict(items)
+    force_editor_rebuild()
 
 def delete_items():
     names = st.session_state.checked_items
@@ -115,19 +118,19 @@ def delete_items():
             del st.session_state.tickers[name]
         if name in st.session_state.market_data:
             del st.session_state.market_data[name]
-    st.session_state.checked_items = [] # 삭제 후 체크 초기화
+    st.session_state.checked_items = [] 
+    force_editor_rebuild()
 
 # --- 5. UI 화면 렌더링 ---
 st.title("📱 지수 종목 확인")
 st.markdown("<span style='color:gray;'>자율 진화형 퀀트 분석 및 실시간 포트폴리오 모니터링 시스템</span>", unsafe_allow_html=True)
 
-# [자동고침 주기 설정 기능 추가]
+# [자동고침 주기 설정 및 컨트롤 패널]
 refresh_opts = {"끄기": 0, "1분마다": 60, "5분마다": 300, "10분마다": 600}
 
-col_btn1, col_btn2, col_btn3, col_btn4 = st.columns([1, 1, 1, 1.5])
+col_btn1, col_btn2, col_btn3, col_btn4 = st.columns([1.2, 1, 1, 1.5])
 with col_btn1:
     refresh_sel = st.selectbox("⏱️ 자동고침 설정", list(refresh_opts.keys()), label_visibility="collapsed")
-    # HTML Meta 태그를 이용해 브라우저 단에서 자동으로 새로고침 수행
     if refresh_opts[refresh_sel] > 0:
         st.markdown(f"<meta http-equiv='refresh' content='{refresh_opts[refresh_sel]}'>", unsafe_allow_html=True)
 with col_btn2:
@@ -142,36 +145,40 @@ with col_btn3:
 with col_btn4:
     st.info(f"마지막 갱신: {st.session_state.last_update}")
 
-# [자동완성 DB 기능 완벽 수정]
+# [오류를 해결한 완벽한 종목 추가/수정 패널]
 with st.expander("➕ 새로운 종목 추가 및 수정", expanded=False):
-    st.markdown("**자동완성 DB 검색** (선택 시 아래 입력칸에 자동 입력됩니다)")
+    st.markdown("**자동완성 DB 검색** (선택 시 아래 입력칸에 자동으로 들어갑니다)")
     
-    def on_db_change():
-        choice = st.session_state.db_choice
-        if choice != "직접 입력":
-            st.session_state.form_name = choice
-            st.session_state.form_ticker = SEARCH_DB[choice]
-        else:
-            st.session_state.form_name = ""
-            st.session_state.form_ticker = ""
-
-    st.selectbox("DB 선택", ["직접 입력"] + list(SEARCH_DB.keys()), key="db_choice", on_change=on_db_change, label_visibility="collapsed")
+    selected_db = st.selectbox("DB 선택", ["직접 입력"] + list(SEARCH_DB.keys()), label_visibility="collapsed")
     
-    c1, c2, c3 = st.columns([2, 2, 1])
-    new_name = c1.text_input("종목명", key="form_name", placeholder="예: 삼성전자")
-    new_ticker = c2.text_input("티커", key="form_ticker", placeholder="예: 005930.KS")
+    # DB 선택 시 기본값 자동 세팅
+    def_name = "" if selected_db == "직접 입력" else selected_db
+    def_ticker = "" if selected_db == "직접 입력" else SEARCH_DB[selected_db]
     
-    if c3.button("적용", use_container_width=True):
+    c1, c2 = st.columns(2)
+    new_name = c1.text_input("종목명", value=def_name, placeholder="예: 삼성전자")
+    new_ticker = c2.text_input("티커", value=def_ticker, placeholder="예: 005930.KS")
+    
+    bc1, bc2 = st.columns(2)
+    if bc1.button("➕ 추가", use_container_width=True):
         if new_name and new_ticker:
             st.session_state.tickers[new_name] = new_ticker
             price, change, raw = fetch_single_stock(new_ticker)
             st.session_state.market_data[new_name] = {"price": price, "change": change, "raw_price": raw}
-            st.success(f"'{new_name}' 적용 완료!")
-            st.session_state.form_name = ""
-            st.session_state.form_ticker = ""
+            st.success(f"'{new_name}' 추가 완료!")
+            force_editor_rebuild()
+            st.rerun()
+            
+    if bc2.button("✏️ 수정", use_container_width=True):
+        if new_name and new_ticker:
+            st.session_state.tickers[new_name] = new_ticker
+            price, change, raw = fetch_single_stock(new_ticker)
+            st.session_state.market_data[new_name] = {"price": price, "change": change, "raw_price": raw}
+            st.success(f"'{new_name}' 수정 완료!")
+            force_editor_rebuild()
             st.rerun()
 
-# --- 6. 실시간 테이블 (체크박스 기억 및 우측 정렬 적용) ---
+# --- 6. 실시간 테이블 (우측 정렬 및 무한 이동 가능) ---
 st.subheader("📈 실시간 지표 및 포트폴리오 관리")
 st.write("표 안의 **[✅선택]** 체크박스를 누른 후 아래 이동 버튼을 클릭하세요.")
 
@@ -196,7 +203,7 @@ for name, _ in st.session_state.tickers.items():
     else: chg_str = f"⚪ 0.00%"
 
     df_list.append({
-        "✅선택": name in st.session_state.checked_items, # 기억된 상태 불러오기
+        "✅선택": name in st.session_state.checked_items,
         "항목": name, 
         "현재가": info.get("price", "-"), 
         "등락률": chg_str
@@ -207,7 +214,7 @@ num_left = math.ceil(len(df) / 2) if len(df) > 0 else 0
 df_left = df.iloc[:num_left].reset_index(drop=True)
 df_right = df.iloc[num_left:].reset_index(drop=True)
 
-# 색상 및 우측 정렬 스타일 적용
+# ✅ 가격과 등락률 우측 정렬 CSS 스크립트 적용
 def color_align(val):
     if not isinstance(val, str): return 'text-align: right;'
     if '🔴' in val: return 'color: #ff4d4d; font-weight: bold; text-align: right;'
@@ -240,7 +247,7 @@ with table_col2:
         key="edit_right"
     )
 
-# 테이블에서 체크된 항목을 즉시 메모리에 업데이트하여 이동 후에도 유지되도록 함
+# 테이블에서 체크된 항목 실시간 동기화
 new_checked_left = edited_left[edited_left["✅선택"] == True]["항목"].tolist() if not edited_left.empty else []
 new_checked_right = edited_right[edited_right["✅선택"] == True]["항목"].tolist() if not edited_right.empty else []
 st.session_state.checked_items = new_checked_left + new_checked_right
