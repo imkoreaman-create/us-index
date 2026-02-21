@@ -9,7 +9,7 @@ from datetime import datetime
 # --- 1. 페이지 및 기본 설정 ---
 st.set_page_config(page_title="지수 종목 확인", layout="wide", initial_sidebar_state="collapsed")
 
-# [핵심 수정 1] 3(현재가), 4(등락률), 5(PEG)열 모두 강제 우측 정렬 CSS 주입
+# [우측 정렬 CSS] 3(현재가), 4(등락률), 5(PEG)열 완벽 우측 정렬
 st.markdown("""
 <style>
 div[data-testid="stDataEditor"] table th:nth-child(3), div[data-testid="stDataEditor"] table td:nth-child(3),
@@ -20,7 +20,6 @@ div[data-testid="stDataEditor"] table th:nth-child(5), div[data-testid="stDataEd
 </style>
 """, unsafe_allow_html=True)
 
-# [핵심 수정 2] VKOSPI 및 NBI 티커 DB 정식 추가
 SEARCH_DB = {
     "VKOSPI (한국형 변동성지수)": "^KSVKOSPI", "NASDAQ Biotechnology (NBI)": "^NBI",
     "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "한국항공우주": "047810.KS",
@@ -57,16 +56,19 @@ if 'market_data' not in st.session_state: st.session_state.market_data = {}
 if 'last_update' not in st.session_state: st.session_state.last_update = "아직 업데이트되지 않음"
 if 'news_data' not in st.session_state: st.session_state.news_data = []
 if 'checked_items' not in st.session_state: st.session_state.checked_items = []
-if 'input_key' not in st.session_state: st.session_state.input_key = 0
 
-# --- 3. 데이터 수집 핵심 함수 (PEG 포함) ---
+# ✅ 텍스트 입력 에러 방지용 상태 변수
+if 'form_name' not in st.session_state: st.session_state.form_name = ""
+if 'form_ticker' not in st.session_state: st.session_state.form_ticker = ""
+
+# --- 3. 데이터 수집 콜백 및 함수 ---
 @st.cache_data(ttl=60)
 def fetch_single_stock(ticker):
     try:
         stock = yf.Ticker(ticker)
-        hist = stock.history(period="5d")
+        # 휴일 데이터 누락을 방지하기 위해 1달치 확보
+        hist = stock.history(period="1mo")
         
-        # 현재가 및 등락률 연산
         if len(hist) >= 2:
             current = float(hist['Close'].iloc[-1])
             prev = float(hist['Close'].iloc[-2])
@@ -77,7 +79,6 @@ def fetch_single_stock(ticker):
         else:
             return 0.0, 0.0, None
 
-        # PEG 연산 (지수나 환율은 제외)
         peg = None
         if not ticker.startswith('^') and '=' not in ticker:
             try:
@@ -85,7 +86,6 @@ def fetch_single_stock(ticker):
                 peg = info.get('pegRatio', info.get('trailingPegRatio', None))
             except:
                 pass
-
         return current, change, peg
     except:
         return 0.0, 0.0, None
@@ -113,20 +113,31 @@ def fetch_news():
     st.session_state.news_data = news_list
 
 if not st.session_state.market_data:
-    with st.spinner("데이터 및 PEG 지표를 수집 중입니다..."):
+    with st.spinner("데이터 및 지표를 수집 중입니다..."):
         fetch_all_data()
         fetch_news()
 
-# --- 4. 순서 이동 및 삭제 로직 ---
+# --- 4. 순서 이동 및 삭제, 종목 추가 (에러 완벽 방지 콜백) ---
 def force_editor_rebuild():
     if "edit_left" in st.session_state: del st.session_state["edit_left"]
     if "edit_right" in st.session_state: del st.session_state["edit_right"]
+
+def handle_add_or_mod():
+    n = st.session_state.form_name
+    t = st.session_state.form_ticker
+    if n and t:
+        st.session_state.tickers[n] = t
+        p, c, peg = fetch_single_stock(t)
+        st.session_state.market_data[n] = {"raw_price": p, "raw_change": c, "peg": peg}
+        save_tickers(st.session_state.tickers)
+        st.session_state.form_name = ""
+        st.session_state.form_ticker = ""
+        force_editor_rebuild()
 
 def move_items(direction):
     names = st.session_state.checked_items
     if not names: return
     items = list(st.session_state.tickers.items())
-    
     if direction == "up":
         for i in range(1, len(items)):
             if items[i][0] in names and items[i-1][0] not in names:
@@ -135,7 +146,6 @@ def move_items(direction):
         for i in range(len(items)-2, -1, -1):
             if items[i][0] in names and items[i+1][0] not in names:
                 items[i], items[i+1] = items[i+1], items[i]
-                
     st.session_state.tickers = dict(items)
     save_tickers(st.session_state.tickers)
     force_editor_rebuild()
@@ -166,50 +176,35 @@ with col_top2:
 with col_top3:
     st.info(f"마지막 갱신: {st.session_state.last_update}")
 
+# ✅ DB 에러 완벽 해결 (Callback 방식)
 with st.expander("➕ 종목 추가 및 DB 검색", expanded=False):
-    selected_db = st.selectbox("DB 선택", ["직접 입력"] + list(SEARCH_DB.keys()), label_visibility="collapsed")
-    
-    def_name = "" if selected_db == "직접 입력" else selected_db
-    def_ticker = "" if selected_db == "직접 입력" else SEARCH_DB[selected_db]
+    def on_db_change():
+        choice = st.session_state.db_choice
+        if choice != "직접 입력":
+            st.session_state.form_name = choice
+            st.session_state.form_ticker = SEARCH_DB[choice]
+        else:
+            st.session_state.form_name = ""
+            st.session_state.form_ticker = ""
+
+    st.selectbox("DB 선택", ["직접 입력"] + list(SEARCH_DB.keys()), key="db_choice", on_change=on_db_change, label_visibility="collapsed")
     
     c1, c2 = st.columns(2)
-    new_name = c1.text_input("종목명", value=def_name, key=f"name_{st.session_state.input_key}")
-    new_ticker = c2.text_input("티커", value=def_ticker, key=f"ticker_{st.session_state.input_key}")
+    st.text_input("종목명", key="form_name", placeholder="예: 삼성전자")
+    st.text_input("티커", key="form_ticker", placeholder="예: 005930.KS")
     
     bc1, bc2 = st.columns(2)
-    if bc1.button("➕ 종목 추가", use_container_width=True):
-        if new_name and new_ticker:
-            st.session_state.tickers[new_name] = new_ticker
-            p, c, peg = fetch_single_stock(new_ticker)
-            st.session_state.market_data[new_name] = {"raw_price": p, "raw_change": c, "peg": peg}
-            save_tickers(st.session_state.tickers)
-            st.session_state.input_key += 1 
-            force_editor_rebuild()
-            st.rerun()
-            
-    if bc2.button("✏️ 종목 수정", use_container_width=True):
-        if new_name and new_ticker:
-            st.session_state.tickers[new_name] = new_ticker
-            p, c, peg = fetch_single_stock(new_ticker)
-            st.session_state.market_data[new_name] = {"raw_price": p, "raw_change": c, "peg": peg}
-            save_tickers(st.session_state.tickers)
-            st.session_state.input_key += 1 
-            force_editor_rebuild()
-            st.rerun()
+    # on_click 콜백을 통해 에러 없이 값 추가 및 폼 비우기 동시 실행
+    bc1.button("➕ 종목 추가", on_click=handle_add_or_mod, use_container_width=True)
+    bc2.button("✏️ 종목 수정", on_click=handle_add_or_mod, use_container_width=True)
 
-# --- 6. 실시간 테이블 (색상 렌더링 및 PEG 완벽 우측 정렬) ---
+# --- 6. 실시간 테이블 (알 수 없는 열 삭제 및 완벽 색상 적용) ---
 st.subheader("📈 실시간 지표 및 포트폴리오 관리")
 
 ctrl1, ctrl2, ctrl3, ctrl4 = st.columns(4)
-if ctrl1.button("🔼 위로 이동", use_container_width=True):
-    move_items("up")
-    st.rerun()
-if ctrl2.button("🔽 아래로 이동", use_container_width=True):
-    move_items("down")
-    st.rerun()
-if ctrl3.button("🗑️ 선택 삭제", use_container_width=True):
-    delete_items()
-    st.rerun()
+if ctrl1.button("🔼 위로 이동", use_container_width=True): move_items("up"); st.rerun()
+if ctrl2.button("🔽 아래로 이동", use_container_width=True): move_items("down"); st.rerun()
+if ctrl3.button("🗑️ 선택 삭제", use_container_width=True): delete_items(); st.rerun()
 
 df_list = []
 for name, ticker in st.session_state.tickers.items():
@@ -220,18 +215,27 @@ for name, ticker in st.session_state.tickers.items():
     
     is_kr = str(ticker).upper().endswith('.KS') or str(ticker).upper().endswith('.KQ')
     
-    # 색상을 입히기 위해 문자열 포맷팅
     price_str = f"{int(price):,}" if is_kr else f"{price:,.2f}"
     chg_str = f"{chg:+.2f}%"
     peg_str = f"{peg:.2f}" if peg is not None else "-"
+    
+    # 기호를 붙여 상승/하락 여부를 문자열 자체에 포함
+    if chg > 0:
+        price_str = f"🔴 {price_str}"
+        chg_str = f"🔴 {chg_str}"
+    elif chg < 0:
+        price_str = f"🔵 {price_str}"
+        chg_str = f"🔵 {chg_str}"
+    else:
+        price_str = f"⚪ {price_str}"
+        chg_str = f"⚪ {chg_str}"
 
     df_list.append({
         "✅선택": name in st.session_state.checked_items,
         "항목": name, 
         "현재가": price_str, 
         "등락률": chg_str,
-        "PEG": peg_str,
-        "_raw_chg": chg # 색상 지정을 위한 숨김 데이터
+        "PEG": peg_str
     })
 
 df = pd.DataFrame(df_list)
@@ -240,24 +244,15 @@ num_left = math.ceil(len(df) / 2) if len(df) > 0 else 0
 df_left = df.iloc[:num_left].copy()
 df_right = df.iloc[num_left:].copy()
 
-def apply_color(row):
-    chg = row['_raw_chg']
-    if pd.isna(chg) or chg == 0.0: color = 'color: gray;'
-    elif chg > 0: color = 'color: #ff4d4d; font-weight: bold;'
-    else: color = 'color: #4d94ff; font-weight: bold;'
-    
-    # 선택, 항목 제외한 현재가, 등락률, PEG에 색상 적용
-    return [''] * 2 + [color] * 3 + ['']
+# 기호를 감지하여 색상을 변경하는 무적의 함수 (숨김 열 불필요)
+def apply_color(val):
+    if not isinstance(val, str): return ''
+    if '🔴' in val: return 'color: #ff4d4d; font-weight: bold;'
+    if '🔵' in val: return 'color: #4d94ff; font-weight: bold;'
+    return 'color: gray;'
 
-if not df_left.empty:
-    styled_left = df_left.style.apply(apply_color, axis=1).hide(subset=['_raw_chg'], axis=1)
-else:
-    styled_left = df_left
-
-if not df_right.empty:
-    styled_right = df_right.style.apply(apply_color, axis=1).hide(subset=['_raw_chg'], axis=1)
-else:
-    styled_right = df_right
+styled_left = df_left.style.map(apply_color, subset=['현재가', '등락률'])
+styled_right = df_right.style.map(apply_color, subset=['현재가', '등락률'])
 
 col_config = {
     "✅선택": st.column_config.CheckboxColumn("선택", width="small"),
@@ -302,7 +297,7 @@ for news in st.session_state.news_data:
 news_html += "</div>"
 st.markdown(news_html, unsafe_allow_html=True)
 
-# --- 8. AI 시뮬레이션 영역 (NBI 및 VKOSPI 100% 반영) ---
+# --- 8. AI 시뮬레이션 영역 (VKOSPI, NBI 100% 반영) ---
 st.subheader("🧠 자율 진화형 AI & 퀀트 포트폴리오 스캐닝")
 sim_col1, sim_col2 = st.columns(2)
 model_sel = sim_col1.selectbox("AI 모델 선택", ["Machine Learning", "LSTM", "Autonomous AI", "Reinforcement Learning", "Sentiment Analysis"])
@@ -313,11 +308,11 @@ if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_contai
     if not st.session_state.checked_items:
         st.warning("⚠️ 표에서 시뮬레이션을 원하시는 주식 종목의 **[✅선택]** 체크박스를 1개 이상 클릭해 주세요.")
     else:
-        with st.spinner('선택된 종목의 PEG, 펀더멘털, 거시 지표를 기반으로 퀀트 연산을 수행합니다...'):
+        with st.spinner('선택된 종목의 펀더멘털과 거시 지표를 기반으로 퀀트 연산을 수행합니다...'):
             current_date_str = datetime.now().strftime("%Y년 %m월 %d일 %H시 %M분")
             market = st.session_state.market_data
             
-            # 매크로 지표 상시 추출 (VKOSPI, NBI 등 완벽 반영)
+            # 매크로 지표 상시 추출
             vkospi = market.get("VKOSPI (한국형 변동성지수)", {})
             vkospi_val = vkospi.get("raw_price", 0.0)
             vkospi_chg = vkospi.get("raw_change", 0.0)
@@ -325,12 +320,17 @@ if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_contai
             nbi = market.get("NASDAQ Biotechnology (NBI)", {})
             nbi_chg = nbi.get("raw_change", 0.0)
 
-            sox_change = market.get("필라델피아 반도체", {}).get("raw_change", 0.0)
+            sox = market.get("필라델피아 반도체", {})
+            sox_chg = sox.get("raw_change", 0.0)
+            
             macro_sentiment = "리스크 회피(Risk-Off) 경계 구간" if vkospi_chg > 0 else "위험자산 선호(Risk-On) 모멘텀 회복"
             
-            # 선택된 종목 실제 퀀트 알고리즘 스캐닝
+            # 선택된 개별 종목 퀀트 분석
             quant_results = []
             for name in st.session_state.checked_items:
+                # 거시 지표가 선택되었다면 분석에서 제외
+                if any(k in name for k in ["VIX", "VKOSPI", "필라델피아", "NBI", "환율", "국채"]): continue
+                
                 info = market.get(name, {})
                 price = info.get("raw_price", 0.0)
                 change = info.get("raw_change", 0.0)
@@ -364,31 +364,32 @@ if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_contai
             st.success("데이터 연산 및 시뮬레이션 분석 완료!")
             st.info(f"**기준 일시:** {current_date_str} | **적용 모델:** {model_sel} | **적용 알고리즘:** {algo_sel}")
             
-            # NBI 지수 조건부 출력
-            nbi_text = f"* **글로벌 바이오 지표 투영:** 나스닥 바이오 지수(NBI)가 전일 대비 {nbi_chg:+.2f}% 변동하며 제약/바이오 섹터 가중치에 반영되었습니다." if nbi_chg != 0 else ""
+            nbi_text = f"* **글로벌 바이오 지표 투영:** 나스닥 바이오 지수(NBI)가 전일 대비 {nbi_chg:+.2f}% 변동하며 가중치에 반영되었습니다." if nbi_chg != 0 else ""
 
             st.markdown(f"""
             ### 1. 거시경제 및 시장 변동성 지표 (상시 참조)
             * **한국형 변동성지수 (VKOSPI):** 현재 {vkospi_val:.2f} (전일대비 {vkospi_chg:+.2f}%). 시장 자금 동향은 **[{macro_sentiment}]** 국면으로 연산되었습니다.
-            * **글로벌 반도체 지수 투영:** 미국 필라델피아 반도체 지수({sox_change:+.2f}%) 데이터가 테크 섹터 스코어링에 반영되었습니다.
+            * **글로벌 반도체 지수 투영:** 미국 필라델피아 반도체 지수({sox_chg:+.2f}%) 데이터가 테크 섹터 스코어링에 반영되었습니다.
             {nbi_text}
             
             ### 2. 🎯 타겟 종목 퀀트 알고리즘 심층 분석
             """)
             
-            # 선택된 종목별 마크다운 브리핑
-            for res in quant_results:
-                n = res['name']
-                p = f"{res['price']:,.0f}" if res['price'] > 1000 else f"{res['price']:,.2f}"
-                c = res['change']
-                peg_str = f"{res['peg']:.2f}" if res['peg'] is not None else "데이터 미수집"
-                color_dot = "🔴" if c > 0 else "🔵" if c < 0 else "⚪"
-                
-                st.markdown(f"""
-                * **{n}**: 현재가 **{p}원** ({color_dot} **{c:+.2f}%**)
-                  * **지표분석:** PEG = {peg_str} | 종합 퀀트 스코어 = **{res['score']}점 / 100점**
-                  * **Action Plan:** **{res['signal']}** ({res['eval']})
-                """)
+            if len(quant_results) == 0:
+                st.markdown("* 선택하신 종목 중 분석 가능한 개별 주식 데이터가 없습니다. (거시 지표는 분석 대상에서 제외됩니다.)")
+            else:
+                for res in quant_results:
+                    n = res['name']
+                    p = f"{res['price']:,.0f}" if res['price'] > 1000 else f"{res['price']:,.2f}"
+                    c = res['change']
+                    peg_str = f"{res['peg']:.2f}" if res['peg'] is not None else "데이터 미수집"
+                    color_dot = "🔴" if c > 0 else "🔵" if c < 0 else "⚪"
+                    
+                    st.markdown(f"""
+                    * **{n}**: 현재가 **{p}원** ({color_dot} **{c:+.2f}%**)
+                      * **지표분석:** PEG = {peg_str} | 종합 퀀트 스코어 = **{res['score']}점 / 100점**
+                      * **Action Plan:** **{res['signal']}** ({res['eval']})
+                    """)
             
             st.markdown(f"> **💡 AI 종합 평가:** 선택된 종목군은 현재 산출된 VKOSPI와 PEG 펀더멘털을 기반으로 기계적이고 냉정한 트레이딩 대응이 요구됩니다.")
 
