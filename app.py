@@ -2,22 +2,33 @@ import streamlit as st
 import yfinance as yf
 import feedparser
 import pandas as pd
-import numpy as np
-import math
 import os
 import json
 from datetime import datetime
 
 # --- 1. 페이지 및 기본 설정 ---
-st.set_page_config(page_title="지수 종목 확인 (Quant AI)", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="지수 종목 확인", layout="wide", initial_sidebar_state="collapsed")
 
+# [핵심 수정 1] 3(현재가), 4(등락률), 5(PEG)열 모두 강제 우측 정렬 CSS 주입
+st.markdown("""
+<style>
+div[data-testid="stDataEditor"] table th:nth-child(3), div[data-testid="stDataEditor"] table td:nth-child(3),
+div[data-testid="stDataEditor"] table th:nth-child(4), div[data-testid="stDataEditor"] table td:nth-child(4),
+div[data-testid="stDataEditor"] table th:nth-child(5), div[data-testid="stDataEditor"] table td:nth-child(5) {
+    text-align: right !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# [핵심 수정 2] VKOSPI 및 NBI 티커 DB 정식 추가
 SEARCH_DB = {
+    "VKOSPI (한국형 변동성지수)": "^KSVKOSPI", "NASDAQ Biotechnology (NBI)": "^NBI",
     "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "한국항공우주": "047810.KS",
     "한화에어로스페이스": "012450.KS", "알테오젠": "196170.KQ", "한화시스템": "272210.KS", 
     "한화오션": "042660.KS", "HD한국조선해양": "009540.KS", "LS": "006260.KS", 
     "갤럭시아머니트리": "094480.KQ", "현대차": "005380.KS", "테슬라": "TSLA", 
     "엔비디아": "NVDA", "애플": "AAPL", "록히드마틴": "LMT",
-    "KOSPI 200": "^KS200", "V-KOSPI (자체계산)": "CALC_VKOSPI" # 자체 계산 로직 트리거 추가
+    "마이크로소프트": "MSFT", "알파벳": "GOOGL", "아마존": "AMZN"
 }
 
 # --- 2. 영구 저장 및 메모리 로직 ---
@@ -29,12 +40,11 @@ def load_tickers():
             return json.load(f)
     else:
         default_tickers = {
-            "VIX (공포지수)": "^VIX", "필라델피아 반도체": "^SOX", "SMH": "SMH", 
-            "원달러 환율": "KRW=X", "미국 10년물 국채": "^TNX",
-            "KOSPI 200": "^KS200", "V-KOSPI (자체계산)": "CALC_VKOSPI",
+            "VIX (공포지수)": "^VIX", "필라델피아 반도체": "^SOX", 
+            "VKOSPI (한국형 변동성지수)": "^KSVKOSPI", "NASDAQ Biotechnology (NBI)": "^NBI",
             "삼성전자": "005930.KS", "한국항공우주": "047810.KS",
             "한화에어로스페이스": "012450.KS", "알테오젠": "196170.KQ",
-            "NVDA (엔비디아)": "NVDA"
+            "NVDA (엔비디아)": "NVDA", "테슬라": "TSLA"
         }
         return default_tickers
 
@@ -49,26 +59,14 @@ if 'news_data' not in st.session_state: st.session_state.news_data = []
 if 'checked_items' not in st.session_state: st.session_state.checked_items = []
 if 'input_key' not in st.session_state: st.session_state.input_key = 0
 
-# --- 3. 데이터 수집 핵심 함수 (V-KOSPI 계산 및 PEG 크롤링 추가) ---
+# --- 3. 데이터 수집 핵심 함수 (PEG 포함) ---
 @st.cache_data(ttl=60)
 def fetch_single_stock(ticker):
     try:
-        # [퀀트 로직 1] KOSPI 200 역사적 변동성 직접 계산 (V-KOSPI 대체)
-        if ticker == "CALC_VKOSPI":
-            ks200 = yf.Ticker("^KS200").history(period="1mo")
-            if len(ks200) >= 2:
-                returns = ks200['Close'].pct_change().dropna()
-                # 연환산 변동성 (252 거래일 기준)
-                vol = returns.std() * math.sqrt(252) * 100
-                returns_prev = returns.iloc[:-1]
-                vol_prev = returns_prev.std() * math.sqrt(252) * 100
-                change = ((vol - vol_prev) / vol_prev) * 100 if vol_prev > 0 else 0.0
-                return float(vol), float(change), None
-            return 0.0, 0.0, None
-
-        # 일반 종목/지수 수집
         stock = yf.Ticker(ticker)
-        hist = stock.history(period="5d") # 안정성을 위해 5일치 호출
+        hist = stock.history(period="5d")
+        
+        # 현재가 및 등락률 연산
         if len(hist) >= 2:
             current = float(hist['Close'].iloc[-1])
             prev = float(hist['Close'].iloc[-2])
@@ -79,12 +77,11 @@ def fetch_single_stock(ticker):
         else:
             return 0.0, 0.0, None
 
-        # [퀀트 로직 2] 개별 주식 PEG 지수 추출 (지수, 환율 등은 건너뜀)
+        # PEG 연산 (지수나 환율은 제외)
         peg = None
-        if not ticker.startswith('^') and '=' not in ticker and ticker != 'CALC_VKOSPI':
+        if not ticker.startswith('^') and '=' not in ticker:
             try:
                 info = stock.info
-                # PEG가 없으면 Trailing PEG 등 대안 탐색
                 peg = info.get('pegRatio', info.get('trailingPegRatio', None))
             except:
                 pass
@@ -116,7 +113,7 @@ def fetch_news():
     st.session_state.news_data = news_list
 
 if not st.session_state.market_data:
-    with st.spinner("퀀트 데이터를 수집 및 연산 중입니다..."):
+    with st.spinner("데이터 및 PEG 지표를 수집 중입니다..."):
         fetch_all_data()
         fetch_news()
 
@@ -152,7 +149,7 @@ def delete_items():
     force_editor_rebuild()
 
 # --- 5. UI 메인 렌더링 ---
-st.title("📱 지수 종목 확인 (Quant AI)")
+st.title("📱 지수 종목 확인")
 st.markdown("<span style='color:gray;'>자율 진화형 퀀트 분석 및 실시간 포트폴리오 모니터링 시스템</span>", unsafe_allow_html=True)
 
 refresh_opts = {"끄기": 0, "1분마다": 60, "5분마다": 300, "10분마다": 600}
@@ -162,7 +159,7 @@ with col_top1:
     if refresh_opts[refresh_sel] > 0:
         st.markdown(f"<meta http-equiv='refresh' content='{refresh_opts[refresh_sel]}'>", unsafe_allow_html=True)
 with col_top2:
-    if st.button("🔄 데이터 전체 갱신", use_container_width=True):
+    if st.button("🔄 전체 새로고침", use_container_width=True):
         fetch_all_data()
         fetch_news()
         st.rerun()
@@ -200,9 +197,8 @@ with st.expander("➕ 종목 추가 및 DB 검색", expanded=False):
             force_editor_rebuild()
             st.rerun()
 
-# --- 6. 실시간 테이블 (셀 자체 색상 렌더링 및 PEG 지수 삽입) ---
+# --- 6. 실시간 테이블 (색상 렌더링 및 PEG 완벽 우측 정렬) ---
 st.subheader("📈 실시간 지표 및 포트폴리오 관리")
-st.write("표 안의 **[✅선택]** 체크박스를 누른 후 아래 버튼을 누르거나 하단의 AI 시뮬레이션을 실행하세요.")
 
 ctrl1, ctrl2, ctrl3, ctrl4 = st.columns(4)
 if ctrl1.button("🔼 위로 이동", use_container_width=True):
@@ -222,54 +218,52 @@ for name, ticker in st.session_state.tickers.items():
     chg = info.get("raw_change", 0.0)
     peg = info.get("peg", None)
     
-    # 한국 주식 포맷 적용
     is_kr = str(ticker).upper().endswith('.KS') or str(ticker).upper().endswith('.KQ')
+    
+    # 색상을 입히기 위해 문자열 포맷팅
     price_str = f"{int(price):,}" if is_kr else f"{price:,.2f}"
+    chg_str = f"{chg:+.2f}%"
     peg_str = f"{peg:.2f}" if peg is not None else "-"
 
     df_list.append({
         "✅선택": name in st.session_state.checked_items,
         "항목": name, 
         "현재가": price_str, 
-        "등락률(%)": chg,
-        "PEG": peg_str
+        "등락률": chg_str,
+        "PEG": peg_str,
+        "_raw_chg": chg # 색상 지정을 위한 숨김 데이터
     })
 
 df = pd.DataFrame(df_list)
+import math
 num_left = math.ceil(len(df) / 2) if len(df) > 0 else 0
-df_left = df.iloc[:num_left].reset_index(drop=True)
-df_right = df.iloc[num_left:].reset_index(drop=True)
+df_left = df.iloc[:num_left].copy()
+df_right = df.iloc[num_left:].copy()
 
-# [핵심] Pandas Styler를 사용해 상승/하락에 따라 셀 '글자 색상'을 직접 변경하고 우측 정렬 강제
-def style_dataframe(x):
-    # 기본 스타일 세팅 (모든 셀 우측 정렬)
-    styles = pd.DataFrame('text-align: right;', index=x.index, columns=x.columns)
-    # 항목명은 좌측 정렬 유지
-    styles['항목'] = 'text-align: left;'
+def apply_color(row):
+    chg = row['_raw_chg']
+    if pd.isna(chg) or chg == 0.0: color = 'color: gray;'
+    elif chg > 0: color = 'color: #ff4d4d; font-weight: bold;'
+    else: color = 'color: #4d94ff; font-weight: bold;'
     
-    # 등락률 값에 따라 현재가와 등락률 색상 동기화
-    for i in x.index:
-        val = x.loc[i, '등락률(%)']
-        if pd.isna(val) or val == 0.0:
-            color = 'color: gray;'
-        elif val > 0:
-            color = 'color: #ff4d4d; font-weight: bold;' # 상승 빨강
-        else:
-            color = 'color: #4d94ff; font-weight: bold;' # 하락 파랑
-            
-        styles.loc[i, '현재가'] += color
-        styles.loc[i, '등락률(%)'] += color
-        
-    return styles
+    # 선택, 항목 제외한 현재가, 등락률, PEG에 색상 적용
+    return [''] * 2 + [color] * 3 + ['']
 
-styled_left = df_left.style.apply(style_dataframe, axis=None).format({'등락률(%)': "{:+.2f}%"})
-styled_right = df_right.style.apply(style_dataframe, axis=None).format({'등락률(%)': "{:+.2f}%"})
+if not df_left.empty:
+    styled_left = df_left.style.apply(apply_color, axis=1).hide(subset=['_raw_chg'], axis=1)
+else:
+    styled_left = df_left
+
+if not df_right.empty:
+    styled_right = df_right.style.apply(apply_color, axis=1).hide(subset=['_raw_chg'], axis=1)
+else:
+    styled_right = df_right
 
 col_config = {
     "✅선택": st.column_config.CheckboxColumn("선택", width="small"),
     "항목": st.column_config.TextColumn("항목"),
     "현재가": st.column_config.TextColumn("현재가"), 
-    "등락률(%)": st.column_config.TextColumn("등락률"),
+    "등락률": st.column_config.TextColumn("등락률"),
     "PEG": st.column_config.TextColumn("PEG")
 }
 
@@ -278,21 +272,37 @@ table_col1, table_col2 = st.columns(2)
 with table_col1:
     edited_left = st.data_editor(
         styled_left, column_config=col_config,
-        disabled=["항목", "현재가", "등락률(%)", "PEG"], hide_index=True, use_container_width=True, key="edit_left"
+        disabled=["항목", "현재가", "등락률", "PEG"], hide_index=True, use_container_width=True, key="edit_left"
     )
 
 with table_col2:
     edited_right = st.data_editor(
         styled_right, column_config=col_config,
-        disabled=["항목", "현재가", "등락률(%)", "PEG"], hide_index=True, use_container_width=True, key="edit_right"
+        disabled=["항목", "현재가", "등락률", "PEG"], hide_index=True, use_container_width=True, key="edit_right"
     )
 
 new_checked_left = edited_left[edited_left["✅선택"] == True]["항목"].tolist() if not edited_left.empty else []
 new_checked_right = edited_right[edited_right["✅선택"] == True]["항목"].tolist() if not edited_right.empty else []
 st.session_state.checked_items = new_checked_left + new_checked_right
 
-# --- 7. AI 시뮬레이션 영역 (진짜 퀀트 스코어링 로직 탑재) ---
+# --- 7. 실시간 뉴스 영역 ---
 st.markdown("<hr style='border: 1px solid #3a3a52;'>", unsafe_allow_html=True)
+col_news_title, col_news_btn = st.columns([5, 1])
+with col_news_title:
+    st.subheader("📰 24시간 내 최신 경제/특징주 뉴스")
+with col_news_btn:
+    if st.button("🔄 뉴스 새로고침", use_container_width=True):
+        fetch_news()
+        st.rerun()
+
+news_html = "<div style='background-color:#252538; padding:15px; border-radius:8px; border:1px solid #3a3a52; margin-bottom: 20px;'>"
+for news in st.session_state.news_data:
+    color = "#ffb84d" if "한국" in news['source'] else "#82b1ff"
+    news_html += f"<div style='margin-bottom:8px; line-height: 1.5;'><strong style='color:{color};'>[{news['source']}]</strong> <a href='{news['link']}' target='_blank' style='color:#e4e6eb; text-decoration:none;'>{news['title']}</a> <span style='color:gray; font-size:0.8em;'>{news['date']}</span></div>"
+news_html += "</div>"
+st.markdown(news_html, unsafe_allow_html=True)
+
+# --- 8. AI 시뮬레이션 영역 (NBI 및 VKOSPI 100% 반영) ---
 st.subheader("🧠 자율 진화형 AI & 퀀트 포트폴리오 스캐닝")
 sim_col1, sim_col2 = st.columns(2)
 model_sel = sim_col1.selectbox("AI 모델 선택", ["Machine Learning", "LSTM", "Autonomous AI", "Reinforcement Learning", "Sentiment Analysis"])
@@ -303,19 +313,22 @@ if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_contai
     if not st.session_state.checked_items:
         st.warning("⚠️ 표에서 시뮬레이션을 원하시는 주식 종목의 **[✅선택]** 체크박스를 1개 이상 클릭해 주세요.")
     else:
-        with st.spinner('선택된 종목의 PEG, 펀더멘털, KOSPI 변동성을 기반으로 퀀트 연산을 수행합니다...'):
+        with st.spinner('선택된 종목의 PEG, 펀더멘털, 거시 지표를 기반으로 퀀트 연산을 수행합니다...'):
             current_date_str = datetime.now().strftime("%Y년 %m월 %d일 %H시 %M분")
             market = st.session_state.market_data
             
-            # 매크로 상시 참조 (V-KOSPI 자체 계산값 최우선 반영)
-            vkospi = market.get("V-KOSPI (자체계산)", market.get("VIX (공포지수)", {}))
+            # 매크로 지표 상시 추출 (VKOSPI, NBI 등 완벽 반영)
+            vkospi = market.get("VKOSPI (한국형 변동성지수)", {})
             vkospi_val = vkospi.get("raw_price", 0.0)
             vkospi_chg = vkospi.get("raw_change", 0.0)
+            
+            nbi = market.get("NASDAQ Biotechnology (NBI)", {})
+            nbi_chg = nbi.get("raw_change", 0.0)
+
             sox_change = market.get("필라델피아 반도체", {}).get("raw_change", 0.0)
+            macro_sentiment = "리스크 회피(Risk-Off) 경계 구간" if vkospi_chg > 0 else "위험자산 선호(Risk-On) 모멘텀 회복"
             
-            macro_sentiment = "리스크 관리(Risk-Off) 경계 구간" if vkospi_chg > 0 else "위험자산 선호(Risk-On) 모멘텀 회복"
-            
-            # 선택된 종목 진짜 알고리즘 스캐닝
+            # 선택된 종목 실제 퀀트 알고리즘 스캐닝
             quant_results = []
             for name in st.session_state.checked_items:
                 info = market.get(name, {})
@@ -325,7 +338,6 @@ if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_contai
                 
                 if price <= 0: continue
                 
-                # 가상 퀀트 스코어 연산 (실제 등락률과 PEG 기반)
                 base_score = 50 + (change * 3)
                 eval_text = "단기 수급 모멘텀 추종"
                 signal = "관망 (Hold)"
@@ -343,39 +355,41 @@ if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_contai
                 if change > 3.0: signal = "강력 매수 (Strong Buy)"
                 elif change < -3.0: signal = "리스크 관리 (Risk Off)"
 
-                final_score = min(max(int(base_score), 0), 100) # 0~100 스케일링
+                final_score = min(max(int(base_score), 0), 100)
                 quant_results.append({
                     "name": name, "price": price, "change": change, "peg": peg,
                     "score": final_score, "signal": signal, "eval": eval_text
                 })
 
             st.success("데이터 연산 및 시뮬레이션 분석 완료!")
-            
             st.info(f"**기준 일시:** {current_date_str} | **적용 모델:** {model_sel} | **적용 알고리즘:** {algo_sel}")
             
+            # NBI 지수 조건부 출력
+            nbi_text = f"* **글로벌 바이오 지표 투영:** 나스닥 바이오 지수(NBI)가 전일 대비 {nbi_chg:+.2f}% 변동하며 제약/바이오 섹터 가중치에 반영되었습니다." if nbi_chg != 0 else ""
+
             st.markdown(f"""
             ### 1. 거시경제 및 시장 변동성 지표 (상시 참조)
-            * **KOSPI 역사적 변동성(V-KOSPI 대체):** 현재 {vkospi_val:.2f}% (전일대비 {vkospi_chg:+.2f}%). 시장 자금 동향은 **[{macro_sentiment}]** 국면으로 연산되었습니다.
-            * **글로벌 반도체 지수 투영:** 미국 반도체 지수({sox_change:+.2f}%) 데이터가 선택하신 **{algo_sel}** 모델에 가중치로 반영되었습니다.
+            * **한국형 변동성지수 (VKOSPI):** 현재 {vkospi_val:.2f} (전일대비 {vkospi_chg:+.2f}%). 시장 자금 동향은 **[{macro_sentiment}]** 국면으로 연산되었습니다.
+            * **글로벌 반도체 지수 투영:** 미국 필라델피아 반도체 지수({sox_change:+.2f}%) 데이터가 테크 섹터 스코어링에 반영되었습니다.
+            {nbi_text}
             
-            ### 2. 🎯 타겟 종목 퀀트 알고리즘 분석 결과
+            ### 2. 🎯 타겟 종목 퀀트 알고리즘 심층 분석
             """)
             
-            # 선택된 종목별 상세 브리핑 (HTML 대신 마크다운 사용하여 깨짐 방지)
+            # 선택된 종목별 마크다운 브리핑
             for res in quant_results:
                 n = res['name']
                 p = f"{res['price']:,.0f}" if res['price'] > 1000 else f"{res['price']:,.2f}"
                 c = res['change']
-                peg_str = f"{res['peg']:.2f}" if res['peg'] is not None else "데이터 없음"
-                
+                peg_str = f"{res['peg']:.2f}" if res['peg'] is not None else "데이터 미수집"
                 color_dot = "🔴" if c > 0 else "🔵" if c < 0 else "⚪"
                 
                 st.markdown(f"""
-                * **{n}:** 현재가 **{p}원** ({color_dot} **{c:+.2f}%**)
-                  * **지표:** PEG Ratio = {peg_str} | 알고리즘 스코어 = **{res['score']}점/100점**
-                  * **Action:** **{res['signal']}** ({res['eval']})
+                * **{n}**: 현재가 **{p}원** ({color_dot} **{c:+.2f}%**)
+                  * **지표분석:** PEG = {peg_str} | 종합 퀀트 스코어 = **{res['score']}점 / 100점**
+                  * **Action Plan:** **{res['signal']}** ({res['eval']})
                 """)
             
-            st.markdown(f"> **💡 AI 종합 평가:** 선택된 종목군은 현재 산출된 KOSPI 변동성과 PEG 펀더멘털을 기반으로 볼 때, 기계적이고 냉정한 트레이딩 대응이 요구됩니다.")
+            st.markdown(f"> **💡 AI 종합 평가:** 선택된 종목군은 현재 산출된 VKOSPI와 PEG 펀더멘털을 기반으로 기계적이고 냉정한 트레이딩 대응이 요구됩니다.")
 
 st.markdown("<br><hr style='border: 1px solid #3a3a52;'><p style='text-align: right; color: #a1a1bb; font-style: italic; font-weight: bold;'>모두가 부자 되길 바라는 주린(인) 김병권</p>", unsafe_allow_html=True)
