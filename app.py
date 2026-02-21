@@ -6,7 +6,7 @@ import math
 from datetime import datetime
 
 # --- 1. 페이지 및 기본 설정 ---
-st.set_page_config(page_title="Pro-Market AI Terminal", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="지수 종목 확인", layout="wide", initial_sidebar_state="collapsed")
 
 SEARCH_DB = {
     "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "한국항공우주": "047810.KS",
@@ -16,6 +16,7 @@ SEARCH_DB = {
     "마이크로소프트": "MSFT", "알파벳": "GOOGL", "아마존": "AMZN"
 }
 
+# --- 2. 메모리(Session State) 초기화 ---
 if 'tickers' not in st.session_state:
     st.session_state.tickers = {
         "VIX (공포지수)": "^VIX", "필라델피아 반도체": "^SOX", "SMH": "SMH", 
@@ -25,14 +26,17 @@ if 'tickers' not in st.session_state:
         "LS": "006260.KS", "갤럭시아머니트리": "094480.KQ",
         "NVDA (엔비디아)": "NVDA", "LMT (록히드마틴)": "LMT"
     }
-if 'market_data' not in st.session_state:
-    st.session_state.market_data = {}
-if 'last_update' not in st.session_state:
-    st.session_state.last_update = "아직 업데이트되지 않음"
-if 'news_data' not in st.session_state:
-    st.session_state.news_data = []
+if 'market_data' not in st.session_state: st.session_state.market_data = {}
+if 'last_update' not in st.session_state: st.session_state.last_update = "아직 업데이트되지 않음"
+if 'news_data' not in st.session_state: st.session_state.news_data = []
 
-# --- 2. 데이터 수집 핵심 함수 ---
+# ✅ 이동 시 체크박스 상태가 풀리지 않도록 기억하는 메모리 추가
+if 'checked_items' not in st.session_state: st.session_state.checked_items = []
+# ✅ 자동완성 입력칸 동기화를 위한 메모리 추가
+if 'form_name' not in st.session_state: st.session_state.form_name = ""
+if 'form_ticker' not in st.session_state: st.session_state.form_ticker = ""
+
+# --- 3. 데이터 수집 핵심 함수 ---
 @st.cache_data(ttl=60)
 def fetch_single_stock(ticker):
     try:
@@ -87,64 +91,75 @@ if not st.session_state.market_data:
         fetch_all_data()
         fetch_news()
 
-# --- 3. 체크박스 순서 이동 및 삭제 로직 ---
-def get_checked_names(edited_left, edited_right):
-    names = []
-    if not edited_left.empty:
-        names += edited_left[edited_left["✅선택"] == True]["항목"].tolist()
-    if not edited_right.empty:
-        names += edited_right[edited_right["✅선택"] == True]["항목"].tolist()
-    return names
-
-def move_items(direction, selected_names):
-    if not selected_names: return
+# --- 4. 순서 이동 및 삭제 로직 (체크박스 기억 로직 연동) ---
+def move_items(direction):
+    names = st.session_state.checked_items
+    if not names: return
     items = list(st.session_state.tickers.items())
     
     if direction == "up":
         for i in range(1, len(items)):
-            if items[i][0] in selected_names and items[i-1][0] not in selected_names:
+            if items[i][0] in names and items[i-1][0] not in names:
                 items[i], items[i-1] = items[i-1], items[i]
     elif direction == "down":
         for i in range(len(items)-2, -1, -1):
-            if items[i][0] in selected_names and items[i+1][0] not in selected_names:
+            if items[i][0] in names and items[i+1][0] not in names:
                 items[i], items[i+1] = items[i+1], items[i]
                 
     st.session_state.tickers = dict(items)
 
-def delete_items(selected_names):
-    for name in selected_names:
+def delete_items():
+    names = st.session_state.checked_items
+    for name in names:
         if name in st.session_state.tickers:
             del st.session_state.tickers[name]
         if name in st.session_state.market_data:
             del st.session_state.market_data[name]
+    st.session_state.checked_items = [] # 삭제 후 체크 초기화
 
-# --- 4. UI 화면 렌더링 ---
-st.title("📱 Pro-Market AI Terminal")
-st.markdown("<span style='color:gray;'>자율 진화형 퀀트 분석 및 실시간 포트폴리오 모니터링 (Web Ver.)</span>", unsafe_allow_html=True)
+# --- 5. UI 화면 렌더링 ---
+st.title("📱 지수 종목 확인")
+st.markdown("<span style='color:gray;'>자율 진화형 퀀트 분석 및 실시간 포트폴리오 모니터링 시스템</span>", unsafe_allow_html=True)
 
-col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
+# [자동고침 주기 설정 기능 추가]
+refresh_opts = {"끄기": 0, "1분마다": 60, "5분마다": 300, "10분마다": 600}
+
+col_btn1, col_btn2, col_btn3, col_btn4 = st.columns([1, 1, 1, 1.5])
 with col_btn1:
-    if st.button("🔄 전체 데이터 새로고침", use_container_width=True):
+    refresh_sel = st.selectbox("⏱️ 자동고침 설정", list(refresh_opts.keys()), label_visibility="collapsed")
+    # HTML Meta 태그를 이용해 브라우저 단에서 자동으로 새로고침 수행
+    if refresh_opts[refresh_sel] > 0:
+        st.markdown(f"<meta http-equiv='refresh' content='{refresh_opts[refresh_sel]}'>", unsafe_allow_html=True)
+with col_btn2:
+    if st.button("🔄 전체 새로고침", use_container_width=True):
         fetch_all_data()
         fetch_news()
         st.rerun()
-with col_btn2:
-    if st.button("📰 뉴스만 새로고침", use_container_width=True):
+with col_btn3:
+    if st.button("📰 뉴스 새로고침", use_container_width=True):
         fetch_news()
         st.rerun()
-with col_btn3:
+with col_btn4:
     st.info(f"마지막 갱신: {st.session_state.last_update}")
 
+# [자동완성 DB 기능 완벽 수정]
 with st.expander("➕ 새로운 종목 추가 및 수정", expanded=False):
     st.markdown("**자동완성 DB 검색** (선택 시 아래 입력칸에 자동 입력됩니다)")
-    selected_db = st.selectbox("DB 선택", ["직접 입력"] + list(SEARCH_DB.keys()), label_visibility="collapsed")
+    
+    def on_db_change():
+        choice = st.session_state.db_choice
+        if choice != "직접 입력":
+            st.session_state.form_name = choice
+            st.session_state.form_ticker = SEARCH_DB[choice]
+        else:
+            st.session_state.form_name = ""
+            st.session_state.form_ticker = ""
+
+    st.selectbox("DB 선택", ["직접 입력"] + list(SEARCH_DB.keys()), key="db_choice", on_change=on_db_change, label_visibility="collapsed")
     
     c1, c2, c3 = st.columns([2, 2, 1])
-    def_name = "" if selected_db == "직접 입력" else selected_db
-    def_ticker = "" if selected_db == "직접 입력" else SEARCH_DB[selected_db]
-    
-    new_name = c1.text_input("종목명", value=def_name, placeholder="예: 삼성전자")
-    new_ticker = c2.text_input("티커", value=def_ticker, placeholder="예: 005930.KS")
+    new_name = c1.text_input("종목명", key="form_name", placeholder="예: 삼성전자")
+    new_ticker = c2.text_input("티커", key="form_ticker", placeholder="예: 005930.KS")
     
     if c3.button("적용", use_container_width=True):
         if new_name and new_ticker:
@@ -152,27 +167,36 @@ with st.expander("➕ 새로운 종목 추가 및 수정", expanded=False):
             price, change, raw = fetch_single_stock(new_ticker)
             st.session_state.market_data[new_name] = {"price": price, "change": change, "raw_price": raw}
             st.success(f"'{new_name}' 적용 완료!")
+            st.session_state.form_name = ""
+            st.session_state.form_ticker = ""
             st.rerun()
 
-# --- 5. 실시간 테이블 (체크박스 기능 적용) ---
+# --- 6. 실시간 테이블 (체크박스 기억 및 우측 정렬 적용) ---
 st.subheader("📈 실시간 지표 및 포트폴리오 관리")
-st.write("표 안의 **[✅선택]** 체크박스를 누른 후 아래 버튼을 클릭하세요.")
+st.write("표 안의 **[✅선택]** 체크박스를 누른 후 아래 이동 버튼을 클릭하세요.")
 
-# [순서 이동 & 삭제 컨트롤 버튼]
 ctrl1, ctrl2, ctrl3, ctrl4 = st.columns(4)
+if ctrl1.button("🔼 위로 이동", use_container_width=True):
+    move_items("up")
+    st.rerun()
+if ctrl2.button("🔽 아래로 이동", use_container_width=True):
+    move_items("down")
+    st.rerun()
+if ctrl3.button("🗑️ 선택 삭제", use_container_width=True):
+    delete_items()
+    st.rerun()
 
 df_list = []
 for name, _ in st.session_state.tickers.items():
     info = st.session_state.market_data.get(name, {})
     chg = info.get("change", 0.0)
     
-    # 웹 환경에 맞춘 직관적인 색상 이모지 적용
     if chg > 0: chg_str = f"🔴 +{chg:.2f}%"
     elif chg < 0: chg_str = f"🔵 {chg:.2f}%"
     else: chg_str = f"⚪ 0.00%"
 
     df_list.append({
-        "✅선택": False,
+        "✅선택": name in st.session_state.checked_items, # 기억된 상태 불러오기
         "항목": name, 
         "현재가": info.get("price", "-"), 
         "등락률": chg_str
@@ -183,13 +207,23 @@ num_left = math.ceil(len(df) / 2) if len(df) > 0 else 0
 df_left = df.iloc[:num_left].reset_index(drop=True)
 df_right = df.iloc[num_left:].reset_index(drop=True)
 
+# 색상 및 우측 정렬 스타일 적용
+def color_align(val):
+    if not isinstance(val, str): return 'text-align: right;'
+    if '🔴' in val: return 'color: #ff4d4d; font-weight: bold; text-align: right;'
+    if '🔵' in val: return 'color: #4d94ff; font-weight: bold; text-align: right;'
+    return 'color: gray; text-align: right;'
+
+style_props = {'text-align': 'right'}
+styled_left = df_left.style.set_properties(subset=['현재가', '등락률'], **style_props).map(color_align, subset=['등락률'])
+styled_right = df_right.style.set_properties(subset=['현재가', '등락률'], **style_props).map(color_align, subset=['등락률'])
+
 table_col1, table_col2 = st.columns(2)
 
-# Streamlit Data Editor를 사용해 표 내부에 실제 체크박스 생성
 with table_col1:
     edited_left = st.data_editor(
-        df_left, 
-        column_config={"✅선택": st.column_config.CheckboxColumn("✅선택", default=False)},
+        styled_left, 
+        column_config={"✅선택": st.column_config.CheckboxColumn("✅선택")},
         disabled=["항목", "현재가", "등락률"], 
         hide_index=True, 
         use_container_width=True,
@@ -198,39 +232,20 @@ with table_col1:
 
 with table_col2:
     edited_right = st.data_editor(
-        df_right, 
-        column_config={"✅선택": st.column_config.CheckboxColumn("✅선택", default=False)},
+        styled_right, 
+        column_config={"✅선택": st.column_config.CheckboxColumn("✅선택")},
         disabled=["항목", "현재가", "등락률"], 
         hide_index=True, 
         use_container_width=True,
         key="edit_right"
     )
 
-# 버튼 동작 로직 처리
-checked_names = get_checked_names(edited_left, edited_right)
+# 테이블에서 체크된 항목을 즉시 메모리에 업데이트하여 이동 후에도 유지되도록 함
+new_checked_left = edited_left[edited_left["✅선택"] == True]["항목"].tolist() if not edited_left.empty else []
+new_checked_right = edited_right[edited_right["✅선택"] == True]["항목"].tolist() if not edited_right.empty else []
+st.session_state.checked_items = new_checked_left + new_checked_right
 
-if ctrl1.button("🔼 위로 이동", use_container_width=True):
-    if checked_names:
-        move_items("up", checked_names)
-        st.rerun()
-    else:
-        st.warning("먼저 체크박스를 선택하세요.")
-
-if ctrl2.button("🔽 아래로 이동", use_container_width=True):
-    if checked_names:
-        move_items("down", checked_names)
-        st.rerun()
-    else:
-        st.warning("먼저 체크박스를 선택하세요.")
-
-if ctrl3.button("🗑️ 선택 삭제", use_container_width=True):
-    if checked_names:
-        delete_items(checked_names)
-        st.rerun()
-    else:
-        st.warning("먼저 체크박스를 선택하세요.")
-
-# --- 6. 실시간 뉴스 영역 ---
+# --- 7. 실시간 뉴스 영역 ---
 st.subheader("📰 24시간 내 최신 경제/특징주 뉴스")
 news_html = "<div style='background-color:#252538; padding:15px; border-radius:8px; border:1px solid #3a3a52; margin-bottom: 20px;'>"
 for news in st.session_state.news_data:
@@ -239,7 +254,7 @@ for news in st.session_state.news_data:
 news_html += "</div>"
 st.markdown(news_html, unsafe_allow_html=True)
 
-# --- 7. AI 시뮬레이션 영역 ---
+# --- 8. AI 시뮬레이션 영역 ---
 st.subheader("🧠 자율 진화형 AI & 포트폴리오 최적화 알고리즘")
 sim_col1, sim_col2 = st.columns(2)
 model_sel = sim_col1.selectbox("AI 모델 선택", ["Machine Learning", "LSTM", "Autonomous AI", "Reinforcement Learning", "Sentiment Analysis"])
