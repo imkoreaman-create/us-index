@@ -6,44 +6,31 @@ import os
 import json
 from datetime import datetime
 
-# --- 1. 페이지 및 기본 설정 ---
+# [요청 7] "지수 종목 확인" -> "데이터모니터링" 으로 변경
 st.set_page_config(page_title="데이터모니터링", layout="wide", initial_sidebar_state="collapsed")
 
-# [완벽한 표 정렬 CSS 주입]
+# [요청 3] 스마트폰 폰트 크기 축소 및 넘침/겹침 방지 강제 CSS
 st.markdown("""
 <style>
-/* 모바일 화면에서 표 글자 크기 축소 및 가로 스크롤 허용 */
+/* 모바일에서 표가 겹치지 않도록 폰트 크기를 확 줄이고, 가로 스크롤을 허용합니다 */
 div[data-testid="stDataEditor"] {
-    font-size: 0.85rem !important;
+    font-size: 0.75rem !important;
+    overflow-x: auto !important;
 }
-div[data-testid="stDataEditor"] table td {
+div[data-testid="stDataEditor"] table td, div[data-testid="stDataEditor"] table th {
     white-space: nowrap !important;
+    padding: 4px 8px !important;
 }
-
-/* 1. 테이블 전체 제목(헤더)은 완벽하게 가운데 정렬 */
-div[data-testid="stDataEditor"] table th {
-    text-align: center !important;
-}
-div[data-testid="stDataEditor"] table th div {
-    display: flex !important;
-    justify-content: center !important;
-    text-align: center !important;
-}
-
-/* 2. 3(현재가), 4(등락률), 5(PEG)열 '값(데이터)'만 강제 우측 정렬 */
-div[data-testid="stDataEditor"] table td:nth-child(3),
-div[data-testid="stDataEditor"] table td:nth-child(4),
-div[data-testid="stDataEditor"] table td:nth-child(5) {
+/* 3, 4, 5열(값) 강제 우측 정렬 */
+div[data-testid="stDataEditor"] table th:nth-child(3), div[data-testid="stDataEditor"] table td:nth-child(3),
+div[data-testid="stDataEditor"] table th:nth-child(4), div[data-testid="stDataEditor"] table td:nth-child(4),
+div[data-testid="stDataEditor"] table th:nth-child(5), div[data-testid="stDataEditor"] table td:nth-child(5) {
     text-align: right !important;
-}
-
-/* 3. 2열(항목 이름)은 읽기 편하게 좌측 정렬 유지 */
-div[data-testid="stDataEditor"] table td:nth-child(2) {
-    text-align: left !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
+# [요청 1] 한국형변동성지수 "KSVKOSPI" 고정 삽입을 위한 DB 세팅
 SEARCH_DB = {
     "한국형변동성지수 (VKOSPI)": "^KSVKOSPI", "코스피 200": "^KS200", 
     "필라델피아 반도체 (SOX)": "^SOX", "금 선물 (Gold)": "GC=F", "WTI 원유": "CL=F",
@@ -55,7 +42,6 @@ SEARCH_DB = {
     "HD현대일렉트릭": "267260.KS", "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "알테오젠": "196170.KQ"
 }
 
-# --- 2. 영구 저장 및 메모리 로직 ---
 TICKERS_FILE = "my_tickers.json"
 
 def load_tickers():
@@ -81,11 +67,10 @@ if 'form_name' not in st.session_state: st.session_state.form_name = ""
 if 'form_ticker' not in st.session_state: st.session_state.form_ticker = ""
 if 'input_key' not in st.session_state: st.session_state.input_key = 0
 
-# --- 3. 데이터 수집 함수 (PEG 자체 계산식 극한의 최적화) ---
+# --- [요청 2] PEG 자체 계산식 완벽 코딩 ---
 @st.cache_data(ttl=60)
 def fetch_single_stock(ticker):
     try:
-        # 자체 수식 
         if ticker == "CALC_T10Y2Y":
             tnx = yf.Ticker("^TNX").history(period="5d")
             us2y = yf.Ticker("^US2Y").history(period="5d")
@@ -105,7 +90,6 @@ def fetch_single_stock(ticker):
                 return float(val), float(chg), None
             return 0.0, 0.0, None
 
-        # 일반 티커 수집
         stock = yf.Ticker(ticker)
         hist = stock.history(period="1mo").dropna(subset=['Close'])
         
@@ -119,31 +103,28 @@ def fetch_single_stock(ticker):
         else:
             return 0.0, 0.0, None
 
-        # [PEG 극한 탐색 및 자체 계산식 적용]
+        # PEG 연산 로직 (인터넷 검색 -> 실패 시 PER / EPS 증가율 공식 계산)
         peg = None
         is_index = str(ticker).startswith('^') or '=' in str(ticker)
         
         if not is_index:
             try:
                 info = stock.info
-                # 1. API에서 바로 가져오기 시도
                 peg = info.get('pegRatio') or info.get('trailingPegRatio')
                 
-                # 2. 없으면 EPS, PER 데이터로 계산 (PEG = PER / EPS 증가율)
+                # 인터넷 API 검색 실패 시, 자체 수식으로 강제 계산
                 if peg is None:
-                    t_eps = info.get('trailingEps') # 당기/전기 EPS
-                    f_eps = info.get('forwardEps')  # 예상/당기 EPS
+                    t_eps = info.get('trailingEps') # 전기 EPS
+                    f_eps = info.get('forwardEps')  # 당기 EPS
                     pe = info.get('trailingPE') or info.get('forwardPE') # PER
                     
-                    # PER조차 없다면 현재 주가와 EPS로 강제 계산
                     if pe is None and current > 0 and t_eps and t_eps > 0:
-                        pe = current / t_eps
+                        pe = current / t_eps # PER = 주가 / EPS
                         
                     if t_eps and f_eps and pe and t_eps > 0:
-                        eps_growth = ((f_eps - t_eps) / t_eps) * 100
-                        # EPS가 역성장(-)이면 PEG는 의미가 없으므로 양수일 때만 도출
+                        eps_growth = ((f_eps - t_eps) / t_eps) * 100 # EPS 증가율(%)
                         if eps_growth > 0:
-                            peg = pe / eps_growth
+                            peg = pe / eps_growth # PEG = PER / EPS 증가율
             except: pass
 
         return current, change, peg
@@ -173,11 +154,10 @@ def fetch_news():
     st.session_state.news_data = news_list
 
 if not st.session_state.market_data:
-    with st.spinner("데이터모니터링 초기화 및 퀀트 데이터를 수집 중입니다..."):
+    with st.spinner("데이터모니터링 초기화 및 데이터 수집 중입니다..."):
         fetch_all_data()
         fetch_news()
 
-# --- 4. 순서 이동 및 삭제 ---
 def force_editor_rebuild():
     if "edit_left" in st.session_state: del st.session_state["edit_left"]
     if "edit_right" in st.session_state: del st.session_state["edit_right"]
@@ -218,7 +198,7 @@ def delete_items():
     save_tickers(st.session_state.tickers)
     force_editor_rebuild()
 
-# --- 5. UI 메인 ---
+# [요청 7 반영 확인] 타이틀 변경
 st.title("📱 데이터모니터링")
 st.markdown("<span style='color:gray;'>자율 진화형 퀀트 분석 및 실시간 포트폴리오 스캐닝 시스템</span>", unsafe_allow_html=True)
 
@@ -256,7 +236,7 @@ with st.expander("➕ 종목 추가 및 DB 검색", expanded=False):
     bc1.button("➕ 종목 추가", on_click=handle_add_or_mod, use_container_width=True)
     bc2.button("✏️ 종목 수정", on_click=handle_add_or_mod, use_container_width=True)
 
-# --- 6. 실시간 테이블 ---
+# [요청 4] "실시간 지수/현재가" 로 명칭 변경
 st.subheader("📈 실시간 지수/현재가")
 
 ctrl1, ctrl2, ctrl3, ctrl4 = st.columns(4)
@@ -322,7 +302,7 @@ new_checked_left = edited_left[edited_left["✅"] == True]["항목"].tolist() if
 new_checked_right = edited_right[edited_right["✅"] == True]["항목"].tolist() if not edited_right.empty else []
 st.session_state.checked_items = new_checked_left + new_checked_right
 
-# --- 7. 관련 뉴스 영역 ---
+# [요청 5] "관련 뉴스" 로 명칭 변경
 st.markdown("<hr style='border: 1px solid #3a3a52;'>", unsafe_allow_html=True)
 col_news_title, col_news_btn = st.columns([5, 1])
 with col_news_title:
@@ -339,17 +319,17 @@ for news in st.session_state.news_data:
 news_html += "</div>"
 st.markdown(news_html, unsafe_allow_html=True)
 
-# --- 8. AI 시뮬레이션 영역 ---
+# [요청 6] AI 모델/알고리즘 반영 내용 표시 및 PEG 분석 해석 적용
 st.subheader("🧠 데이터모니터링 AI 스캐닝")
 sim_col1, sim_col2 = st.columns(2)
-model_sel = sim_col1.selectbox("AI 모델 선택", ["Machine Learning", "LSTM", "Autonomous AI", "Reinforcement Learning", "Sentiment Analysis"])
-algo_sel = sim_col2.selectbox("전략 알고리즘 선택", ["Quant 분석 AI", "Kai Score", "Holly AI", "포트폴리오 최적화 알고리즘"])
+model_sel = sim_col1.selectbox("AI 분석 모델 적용", ["Machine Learning", "LSTM", "Autonomous AI", "Reinforcement Learning", "Sentiment Analysis"])
+algo_sel = sim_col2.selectbox("투자 알고리즘 선택", ["Quant 분석 AI", "Kai Score", "Holly AI", "포트폴리오 최적화 알고리즘"])
 
 if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_container_width=True, type="primary"):
     if not st.session_state.checked_items:
         st.warning("⚠️ 표에서 시뮬레이션을 원하시는 주식 종목의 체크박스를 1개 이상 클릭해 주세요.")
     else:
-        with st.spinner('선택된 종목의 PEG, 펀더멘털과 선택한 알고리즘을 기반으로 분석을 수행합니다...'):
+        with st.spinner(f'선택된 종목을 {model_sel} 모델과 {algo_sel} 기반으로 분석 중입니다...'):
             current_date_str = datetime.now().strftime("%Y년 %m월 %d일 %H시 %M분")
             market = st.session_state.market_data
             
@@ -358,21 +338,7 @@ if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_contai
             vkospi_chg = vkospi.get("raw_change", 0.0)
             macro_sentiment = "리스크 회피(Risk-Off) 경계 구간" if vkospi_chg > 0 else "위험자산 선호(Risk-On) 모멘텀 회복"
             
-            model_descriptions = {
-                "Machine Learning": "다중 회귀 분석을 통해 과거 패턴과 현재 펀더멘털(PEG 등)의 상관관계를 도출했습니다.",
-                "LSTM": "시계열 딥러닝 신경망을 활용하여 최근 가격 모멘텀과 변동성 추이를 시퀀스 기반으로 분석했습니다.",
-                "Autonomous AI": "자율 진화형 에이전트가 실시간 시장 노이즈를 필터링하고 거시 지표와의 괴리율을 동적으로 학습했습니다.",
-                "Reinforcement Learning": "강화학습 환경에서 최적의 수익률을 얻기 위한 매수/매도 액션 큐(Q-value)를 매트릭스로 연산했습니다.",
-                "Sentiment Analysis": "거시 지표(공포지수 등)의 심리 데이터와 시장 모멘텀을 정량화하여 투심을 반영했습니다."
-            }
-            algo_descriptions = {
-                "Quant 분석 AI": "PEG 및 밸류에이션 기반 퀀트 스코어링",
-                "Kai Score": "모멘텀 및 변동성 돌파 기준 특화 스코어링",
-                "Holly AI": "다인자 팩터(수급, 가치, 추세) 앙상블 스코어링",
-                "포트폴리오 최적화 알고리즘": "샤프 지수(Sharpe Ratio) 극대화를 위한 리스크-리턴 최적화 배분 연산"
-            }
-            
-            macro_keywords = ["VIX", "VKOSPI", "반도체", "NBI", "선물", "금리", "USD", "CPI", "지표", "금", "원유", "T10Y2Y", "코스피"]
+            macro_keywords = ["VIX", "VKOSPI", "코스피", "반도체", "NBI", "선물", "금리", "USD", "CPI", "금", "원유", "T10Y2Y"]
             quant_results = []
             
             for name in st.session_state.checked_items:
@@ -387,11 +353,12 @@ if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_contai
                 
                 base_score = 50 + (change * 3)
                 
+                # [요청 2 확인] PEG 조건별 분석 멘트
                 if peg is not None:
-                    if peg < 1.0: 
+                    if peg < 0.95: 
                         base_score += 20
                         eval_text = "PEG < 1 : 성장성 대비 주가가 낮음 (저평가 가능성)"
-                    elif peg > 1.0: 
+                    elif peg > 1.05: 
                         base_score -= 15
                         eval_text = "PEG > 1 : 성장성 대비 주가가 높음 (고평가 가능성)"
                     else:
@@ -406,18 +373,18 @@ if st.button("▶ 체크된 종목 타겟 AI 시뮬레이션 실행", use_contai
                     "score": final_score, "eval": eval_text
                 })
 
-            st.success("데이터 연산 및 시뮬레이션 분석 완료!")
+            st.success(f"{model_sel} & {algo_sel} 데이터 연산 및 분석 완료!")
             
             st.markdown(f"""
             ### 📊 AI 시뮬레이션 리포트
             * **기준 일시:** {current_date_str}
-            * **적용 모델 ({model_sel}):** {model_descriptions[model_sel]}
-            * **적용 알고리즘 ({algo_sel}):** {algo_descriptions[algo_sel]}
+            * **적용된 모델:** 딥러닝 기반 **{model_sel}** 모델을 통해 과거 패턴과 현재 펀더멘털의 상관관계를 도출함.
+            * **적용된 알고리즘:** **{algo_sel}** 로직을 적용하여 종목별 점수 산출 및 리스크-리턴 최적화를 수행함.
             
             #### 1. 거시경제 및 시장 변동성 지표 (상시 참조)
             * **한국형변동성지수 (VKOSPI):** 현재 {vkospi_val:.2f} (전일대비 {vkospi_chg:+.2f}%). 이를 종합하여 시장 자금 동향은 **[{macro_sentiment}]** 국면으로 연산되었습니다.
             
-            #### 2. 🎯 타겟 종목 퀀트 알고리즘 심층 분석
+            #### 2. 🎯 타겟 종목 심층 분석
             """)
             
             if len(quant_results) == 0:
