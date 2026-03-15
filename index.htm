@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#050507">
+    <title>Quantum Mobile Pro - The Final Masterpiece</title>
+    <style>
+        /* 글로벌 리셋 및 폰트 */
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', 'Malgun Gothic', sans-serif; background-color: #050507; color: #e2e8f0; line-height: 1.5; padding: 15px 10px calc(100px + env(safe-area-inset-bottom)) 10px; font-size: 14px; position: relative; overflow-x: hidden; }
+        
+        /* ✨ 시그니처 마크 */
+        .creator-mark { position: absolute; top: 15px; right: 10px; font-size: 0.65rem; color: #ebd197; background: rgba(212, 175, 55, 0.08); border: 1px solid rgba(212, 175, 55, 0.3); padding: 5px 12px; border-radius: 20px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-weight: 700; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 0 8px rgba(212, 175, 55, 0.1); z-index: 1000; display: flex; align-items: center; gap: 4px; }
+        .creator-mark::before { content: "✨"; font-size: 0.7rem; }
+
+        header { text-align: center; margin-bottom: 20px; padding: 30px 0 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); position: relative; }
+        h1 { color: #fff; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 8px; text-shadow: 0 0 15px rgba(0, 255, 204, 0.4); }
+        .highlight-title { background: linear-gradient(135deg, #00ffcc, #0099ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .date-display { background: rgba(255, 51, 102, 0.15); color: #ff3366; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 800; border: 1px solid rgba(255, 51, 102, 0.4); display:inline-block;}
+
+        .grid-wrapper { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        @media (min-width: 768px) { .grid-wrapper { grid-template-columns: 1fr 1fr; gap: 20px; } body { padding: 30px 20px calc(120px + env(safe-area-inset-bottom)) 20px; font-size: 15px; } .creator-mark { top: 25px; right: 20px; font-size: 0.8rem; } h1 { font-size: 2rem; } }
+
+        .card { background: linear-gradient(145deg, #111216, #16181d); border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 8px 24px rgba(0,0,0,0.4); padding: 18px 12px; position: relative; overflow: hidden; margin-bottom: 15px; }
+        .card::before { content: ""; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: #444; }
+        .card.theme-semi::before { background: #00ffcc; }
+        .card.theme-macro::before { background: #9900ff; }
+        .card.theme-sector::before { background: #ff9900; }
+        .card.theme-risk::before { background: #ffaa00; box-shadow: 0 0 15px #ffaa00; }
+        .card.theme-event::before { background: #ff3366; box-shadow: 0 0 15px #ff3366; }
+        .card.theme-ai::before { background: #cc33ff; }
+
+        .card-header { font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 15px; display: flex; align-items: center; padding-left: 4px; justify-content: space-between;}
+        .card-header span.icon-title { display:flex; align-items:center; gap:8px; font-size: 1.05rem; }
+
+        /* 5단계 스케일(Slider) UI 디자인 */
+        .scale-header { display: flex; font-size: 0.65rem; color: #718096; margin-bottom: 12px; padding-bottom: 8px; padding-left: 42%; text-align: center; font-weight: 600; letter-spacing: -0.5px; position: relative; }
+        .scale-header::after { content: ''; position: absolute; bottom: 0; left: 42%; width: 58%; height: 1px; background: rgba(255,255,255,0.08); }
+        .scale-header span { flex: 1; }
+
+        .row-5step { display: flex; align-items: center; margin-bottom: 12px; padding-bottom: 12px; position: relative; }
+        .row-5step::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.07) 15%, rgba(255,255,255,0.07) 85%, rgba(255,255,255,0) 100%); }
+        .row-5step:last-child { margin-bottom: 0; padding-bottom: 0; }
+        .row-5step:last-child::after { display: none; }
+
+        .row-5step .label-group { flex: 0 0 42%; padding-right: 5px; font-size: 0.85rem; font-weight: 600; line-height: 1.2; word-break: keep-all; }
+        
+        .radio-5step { flex: 1; display: flex; position: relative; align-items: center; justify-content: space-between; padding: 0; }
+        .radio-5step::before { content: ''; position: absolute; top: 50%; left: 8%; right: 8%; height: 2px; background: rgba(255,255,255,0.1); transform: translateY(-50%); z-index: 1; }
+        
+        .radio-5step label { position: relative; z-index: 2; flex: 1; height: 36px; cursor: pointer; display: flex; justify-content: center; align-items: center; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        .radio-5step input { display: none; }
+        .mark { width: 16px; height: 16px; border-radius: 50%; background: #16181d; border: 2px solid #4a5568; transition: 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        
+        .radio-5step input[value="1"]:checked + .mark { background: #00ffcc; border-color: #00ffcc; box-shadow: 0 0 12px #00ffcc; transform: scale(1.3); }
+        .radio-5step input[value="0.75"]:checked + .mark { background: #00ccaa; border-color: #00ccaa; box-shadow: 0 0 8px #00ccaa; transform: scale(1.15); }
+        .radio-5step input[value="0.5"]:checked + .mark { background: #a0aec0; border-color: #a0aec0; box-shadow: 0 0 8px rgba(160,174,192,0.5); transform: scale(1.15); }
+        .radio-5step input[value="0.25"]:checked + .mark { background: #ff6666; border-color: #ff6666; box-shadow: 0 0 8px #ff6666; transform: scale(1.15); }
+        .radio-5step input[value="0"]:checked + .mark { background: #ff4444; border-color: #ff4444; box-shadow: 0 0 12px #ff4444; transform: scale(1.3); }
+
+        /* 토글 스위치 (ON/OFF) */
+        .row { display: flex; flex-direction: column; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .row:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        @media (min-width: 480px) { .row { flex-direction: row; align-items: center; justify-content: space-between; } }
+        .toggle-group { display: flex; gap: 6px; width: 100%; }
+        @media (min-width: 480px) { .toggle-group { width: auto; min-width: 150px; } }
+        .toggle-label { flex: 1; cursor: pointer; position: relative; text-align: center; }
+        .toggle-label input { display: none; }
+        .toggle-label span { display: block; padding: 10px 0; background: #1e2025; border: 1px solid #2d3748; border-radius: 8px; font-size: 0.8rem; font-weight: 600; color: #a0aec0; transition: all 0.2s ease; user-select: none; }
+        .toggle-label input[value="1"]:checked + span { background: rgba(0, 255, 204, 0.1); border-color: #ffaa00; color: #ffaa00; box-shadow: 0 4px 12px rgba(255, 170, 0, 0.2); }
+        .toggle-label input[value="0"]:checked + span { background: rgba(160, 174, 192, 0.1); border-color: #4a5568; color: #a0aec0; }
+
+        /* 다이렉트 링크 디자인 */
+        a.data-link { color: #e2e8f0; text-decoration: none; transition: color 0.2s; }
+        a.data-link:active, a.data-link:hover { color: #00ffcc; text-shadow: 0 0 8px rgba(0,255,204,0.5); }
+        a.data-link::after { content: "↗"; font-size: 0.7em; margin-left: 2px; opacity: 0.5; color: #a0aec0; }
+        a.strong-link { color: #cc33ff; text-decoration: none; border-bottom: 1px dashed rgba(204, 51, 255, 0.5); padding-bottom: 2px; transition:0.2s;}
+        a.strong-link:active { color:#ffdd00; }
+
+        /* 데이터 입력 폼 */
+        .input-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        @media (min-width: 500px) { .input-grid { grid-template-columns: 1fr 1fr; } }
+        .input-box { background: #1a1c23; border: 1px solid #2d3748; border-radius: 10px; padding: 10px; position: relative;}
+        .input-box label { display: block; font-size: 0.85rem; color: #a0aec0; margin-bottom: 6px; font-weight: 600; }
+        
+        .flex-inputs { display: flex; gap: 8px; align-items:center; }
+        
+        /* 물리적 +/- 버튼 스위치 */
+        .btn-sign { background: #2d3748; color:#fff; border:1px solid #4a5568; border-radius:6px; padding:6px 12px; font-weight:900; font-size:1.1rem; cursor:pointer; touch-action:manipulation;}
+        .btn-sign:active { background: #ffaa00; color:#000; }
+
+        .flex-inputs input, .input-box input.single-input { 
+            width: 100%; background: transparent; border: none; outline: none; 
+            color: #ffdd00 !important; font-size: 1.15rem; font-weight: 800 !important; 
+            text-align: right; border-bottom: 2px solid #2d3748; transition: 0.3s; padding-bottom: 4px; 
+            -moz-appearance: textfield; 
+        }
+        .flex-inputs input::-webkit-outer-spin-button, .flex-inputs input::-webkit-inner-spin-button,
+        .input-box input::-webkit-outer-spin-button, .input-box input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .flex-inputs input:focus, .input-box input.single-input:focus { border-bottom-color: #00ffcc; }
+        .flex-inputs input::placeholder, .input-box input.single-input::placeholder { color: #64748b !important; font-size: 0.85rem; font-weight: 400 !important; }
+        
+        .input-highlight { border-color: rgba(0, 255, 204, 0.3); background: rgba(0, 255, 204, 0.02); }
+        .input-highlight input { border-bottom-color: rgba(0, 255, 204, 0.3); }
+        .input-event { border-color: rgba(255, 51, 102, 0.3); background: rgba(255, 51, 102, 0.02); }
+        .input-event input { color: #ff3366; border-bottom-color: rgba(255,51,102,0.3); }
+        .ai-slot { border-color: #cc33ff !important; background-color: #1a0a1a !important; }
+        .ai-slot input { border-color: #cc33ff; color: #cc33ff; }
+
+        /* AI 동적 추천 버튼 */
+        .btn-ai-scan { background: linear-gradient(90deg, #cc33ff, #ff3366); color: #fff; border: none; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(204, 51, 255, 0.4); touch-action: manipulation;}
+        .btn-ai-scan:active { transform: scale(0.95); }
+
+        /* 하단 플로팅 액션 버튼 */
+        .fab-container { position: fixed; bottom: 0; left: 0; width: 100%; padding: 15px 15px calc(15px + env(safe-area-inset-bottom)) 15px; background: rgba(5, 5, 7, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); display: flex; gap: 10px; z-index: 9999; border-top: 1px solid rgba(255,255,255,0.05); }
+        .btn-run { flex: 3; background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%); color: #000; border: none; border-radius: 12px; padding: 16px; font-size: 1.1rem; font-weight: 800; cursor: pointer; box-shadow: 0 4px 15px rgba(0, 242, 254, 0.4); transition: transform 0.1s; touch-action: manipulation;}
+        .btn-run:active { transform: scale(0.96); }
+        .btn-reset { flex: 1; background: #2d3748; color: #fff; border: none; border-radius: 12px; font-size: 0.9rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+
+        #loadingScreen { display: none; text-align: center; margin: 30px 0; font-size: 1.1rem; font-weight: bold; color: #00ffcc; animation: pulse 1s infinite alternate; }
+        @keyframes pulse { 0% { opacity: 0.5; transform: scale(0.98); } 100% { opacity: 1; transform: scale(1.02); text-shadow: 0 0 10px #00ffcc; } }
+
+        /* 결과창 CSS */
+        #resultBox { display: none; margin-top: 15px; animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1); padding-bottom:30px;}
+        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .dl-panel { background: #111216; border-radius: 12px; padding: 15px; border: 1px solid #2d3748; margin-bottom: 15px; }
+        .dl-bar-wrap { height: 12px; background: #2d3748; border-radius: 6px; margin: 8px 0; overflow: hidden; position: relative; }
+        .dl-bar { height: 100%; border-radius: 6px; transition: width 1s ease-in-out; }
+        .dl-label { display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: bold; color: #a0aec0; margin-bottom: 4px; }
+        
+        .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #2d3748; }
+        .metric-card { text-align: center; background: #1a1c23; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.03); }
+        .metric-val { font-size: 1.25rem; font-weight: 800; margin-top: 5px; }
+
+        /* 🧠 코어 엔진 로그 패널 UI */
+        .engine-log { background: #0a0a0c; border: 1px solid #2d3748; border-radius: 8px; padding: 12px; margin-bottom: 15px; font-family: 'Courier New', monospace; font-size: 0.75rem; color: #00ffcc; white-space: pre-wrap; line-height: 1.5; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
+        .engine-log span.alert { color: #ff4444; font-weight:bold;}
+        .engine-log span.info { color: #ebd197; font-weight:bold;}
+        .timestamp { font-size:0.7rem; color:#718096; text-align:right; margin-bottom:5px; font-family:-apple-system, sans-serif;}
+
+        .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; border: 1px solid #2d3748; background: #111216; margin-bottom: 15px; }
+        .table-responsive::-webkit-scrollbar { height: 8px; }
+        .table-responsive::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
+        .table-responsive::-webkit-scrollbar-track { background: #1a1c23; }
+
+        table { width: 100%; border-collapse: collapse; min-width: 900px; } 
+        th, td { padding: 14px 12px; text-align: right; border-bottom: 1px solid #2d3748; font-size: 0.85rem; vertical-align: middle; line-height: 1.4; }
+        th { background: #0a0a0c; color: #ff9900; font-weight: 600; text-align: center; white-space: nowrap; }
+        th:first-child, td:first-child { text-align: left; background: #16181d; z-index: 2; border-right: 1px solid #2d3748; }
+        th:first-child { background: #0a0a0c; text-align: left; }
+        
+        tbody tr { transition: background-color 0.2s; }
+        tbody tr:hover { background-color: rgba(255,255,255,0.02); }
+
+        .c-buy { color: #00ffcc; font-weight: bold; }
+        .c-sell { color: #ff4444; font-weight: bold; }
+        .c-warn { color: #ff9900; font-weight: bold; }
+        .bg-event { background: rgba(255, 51, 102, 0.08); }
+        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; background: #2d3748; color: #fff; margin-top: 6px; border: 1px solid #4a5568; }
+        
+        .portfolio-summary { background: #1a1c23; padding: 18px; border-top: 3px solid #ffaa00; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; border-radius: 0 0 12px 12px; }
+        .port-item { flex: 1; min-width: 110px; text-align: center; }
+        .port-title { font-size: 0.75rem; color: #a0aec0; margin-bottom: 6px; }
+        .port-val { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; }
+    </style>
+</head>
+<body>
+
+    <div class="creator-mark">모두가 부자 되길 바라는 주린(인)님 병권</div>
+
+    <header>
+        <h1>Quantum <span class="highlight-title">Mobile Pro</span></h1>
+        <span class="date-display" id="todayBadge">Date</span>
+    </header>
+
+    <form id="tradingForm">
+        <div class="grid-wrapper">
+            <div class="card theme-semi">
+                <div class="card-header"><span class="icon-title">📱 1. 글로벌 Tech & 심리</span></div>
+                <div class="scale-header"><span>상승</span><span>강보합</span><span>중립</span><span>약하락</span><span>하락</span></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/indices/phlx-semiconductor" target="_blank" class="data-link">필라델피아 반도체</a></div>
+                <div class="radio-5step"><label><input type="radio" name="sox" value="1"><span class="mark"></span></label><label><input type="radio" name="sox" value="0.75"><span class="mark"></span></label><label><input type="radio" name="sox" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="sox" value="0.25"><span class="mark"></span></label><label><input type="radio" name="sox" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://finance.yahoo.com/quote/NVDA/" target="_blank" class="data-link">엔비디아 (NVDA)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="nvda" value="1"><span class="mark"></span></label><label><input type="radio" name="nvda" value="0.75"><span class="mark"></span></label><label><input type="radio" name="nvda" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="nvda" value="0.25"><span class="mark"></span></label><label><input type="radio" name="nvda" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://finance.yahoo.com/quote/TSM/" target="_blank" class="data-link">TSMC (파운드리)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="tsm" value="1"><span class="mark"></span></label><label><input type="radio" name="tsm" value="0.75"><span class="mark"></span></label><label><input type="radio" name="tsm" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="tsm" value="0.25"><span class="mark"></span></label><label><input type="radio" name="tsm" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://finance.yahoo.com/quote/MU/" target="_blank" class="data-link">마이크론 (MU)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="mu" value="1"><span class="mark"></span></label><label><input type="radio" name="mu" value="0.75"><span class="mark"></span></label><label><input type="radio" name="mu" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="mu" value="0.25"><span class="mark"></span></label><label><input type="radio" name="mu" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://finance.yahoo.com/quote/AVGO/" target="_blank" class="data-link">브로드컴 (AVGO)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="avgo" value="1"><span class="mark"></span></label><label><input type="radio" name="avgo" value="0.75"><span class="mark"></span></label><label><input type="radio" name="avgo" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="avgo" value="0.25"><span class="mark"></span></label><label><input type="radio" name="avgo" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://finance.yahoo.com/quote/WDC/" target="_blank" class="data-link">Western Digital</a></div>
+                <div class="radio-5step"><label><input type="radio" name="wdc" value="1"><span class="mark"></span></label><label><input type="radio" name="wdc" value="0.75"><span class="mark"></span></label><label><input type="radio" name="wdc" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="wdc" value="0.25"><span class="mark"></span></label><label><input type="radio" name="wdc" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/indices/nq-100" target="_blank" class="data-link">나스닥 100 (NDX)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="ndx" value="1"><span class="mark"></span></label><label><input type="radio" name="ndx" value="0.75"><span class="mark"></span></label><label><input type="radio" name="ndx" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="ndx" value="0.25"><span class="mark"></span></label><label><input type="radio" name="ndx" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://finance.yahoo.com/quote/AAPL/" target="_blank" class="data-link">애플 (AAPL)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="aapl" value="1"><span class="mark"></span></label><label><input type="radio" name="aapl" value="0.75"><span class="mark"></span></label><label><input type="radio" name="aapl" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="aapl" value="0.25"><span class="mark"></span></label><label><input type="radio" name="aapl" value="0"><span class="mark"></span></label></div></div>
+            </div>
+
+            <div class="card theme-macro">
+                <div class="card-header"><span class="icon-title">🌍 2. 매크로 & 공포 지수</span></div>
+                <div class="scale-header"><span>안정(긍정)</span><span>약안정</span><span>관망</span><span>불안</span><span>발작(부정)</span></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/crypto/bitcoin/btc-usd" target="_blank" class="data-link">비트코인 (BTC)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="btc" value="1"><span class="mark"></span></label><label><input type="radio" name="btc" value="0.75"><span class="mark"></span></label><label><input type="radio" name="btc" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="btc" value="0.25"><span class="mark"></span></label><label><input type="radio" name="btc" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/currencies/usd-krw" target="_blank" class="data-link">달러/원 환율</a></div>
+                <div class="radio-5step"><label><input type="radio" name="fx" value="1"><span class="mark"></span></label><label><input type="radio" name="fx" value="0.75"><span class="mark"></span></label><label><input type="radio" name="fx" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="fx" value="0.25"><span class="mark"></span></label><label><input type="radio" name="fx" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/rates-bonds/u.s.-10-year-bond-yield" target="_blank" class="data-link">미국 10년물 금리</a></div>
+                <div class="radio-5step"><label><input type="radio" name="yield_rate" value="1"><span class="mark"></span></label><label><input type="radio" name="yield_rate" value="0.75"><span class="mark"></span></label><label><input type="radio" name="yield_rate" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="yield_rate" value="0.25"><span class="mark"></span></label><label><input type="radio" name="yield_rate" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/commodities/crude-oil" target="_blank" class="data-link">WTI 유가 (미국)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="wti" value="1"><span class="mark"></span></label><label><input type="radio" name="wti" value="0.75"><span class="mark"></span></label><label><input type="radio" name="wti" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="wti" value="0.25"><span class="mark"></span></label><label><input type="radio" name="wti" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/commodities/copper" target="_blank" class="data-link">구리 선물 (Copper)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="copper" value="1"><span class="mark"></span></label><label><input type="radio" name="copper" value="0.75"><span class="mark"></span></label><label><input type="radio" name="copper" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="copper" value="0.25"><span class="mark"></span></label><label><input type="radio" name="copper" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://search.naver.com/search.naver?where=news&query=지정학+위기+전쟁+갈등" target="_blank" class="data-link">지정학적 위기 뉴스</a></div>
+                <div class="radio-5step"><label><input type="radio" name="geo" value="1"><span class="mark"></span></label><label><input type="radio" name="geo" value="0.75"><span class="mark"></span></label><label><input type="radio" name="geo" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="geo" value="0.25"><span class="mark"></span></label><label><input type="radio" name="geo" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/indices/volatility-s-p-500" target="_blank" class="data-link">CBOE VIX (글로벌)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="vix" value="1"><span class="mark"></span></label><label><input type="radio" name="vix" value="0.75"><span class="mark"></span></label><label><input type="radio" name="vix" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="vix" value="0.25"><span class="mark"></span></label><label><input type="radio" name="vix" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/indices/kospi-volatility" target="_blank" class="data-link">VKOSPI (국내 공포)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="vkospi" value="1"><span class="mark"></span></label><label><input type="radio" name="vkospi" value="0.75"><span class="mark"></span></label><label><input type="radio" name="vkospi" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="vkospi" value="0.25"><span class="mark"></span></label><label><input type="radio" name="vkospi" value="0"><span class="mark"></span></label></div></div>
+            </div>
+
+            <div class="card theme-sector">
+                <div class="card-header"><span class="icon-title">🎯 3. 섹터 특화 & 선행 지표</span></div>
+                <div class="scale-header"><span>상승(호재)</span><span>강보합</span><span>중립</span><span>약하락</span><span>하락(악재)</span></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/etfs/ishares-south-korea-index" target="_blank" class="data-link">MSCI 한국 (EWY)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="ewy" value="1"><span class="mark"></span></label><label><input type="radio" name="ewy" value="0.75"><span class="mark"></span></label><label><input type="radio" name="ewy" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="ewy" value="0.25"><span class="mark"></span></label><label><input type="radio" name="ewy" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/indices/nq-100-futures?cid=1178357" target="_blank" class="data-link">나스닥 선물 (NQ)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="nq_fut" value="1"><span class="mark"></span></label><label><input type="radio" name="nq_fut" value="0.75"><span class="mark"></span></label><label><input type="radio" name="nq_fut" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="nq_fut" value="0.25"><span class="mark"></span></label><label><input type="radio" name="nq_fut" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/indices/us-spx-500-futures" target="_blank" class="data-link">S&P 500 선물 (ES)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="es_fut" value="1"><span class="mark"></span></label><label><input type="radio" name="es_fut" value="0.75"><span class="mark"></span></label><label><input type="radio" name="es_fut" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="es_fut" value="0.25"><span class="mark"></span></label><label><input type="radio" name="es_fut" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://finance.yahoo.com/quote/ETN/" target="_blank" class="data-link">이튼 인프라 (ETN)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="etn" value="1"><span class="mark"></span></label><label><input type="radio" name="etn" value="0.75"><span class="mark"></span></label><label><input type="radio" name="etn" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="etn" value="0.25"><span class="mark"></span></label><label><input type="radio" name="etn" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/etfs/global-x-uranium" target="_blank" class="data-link">원전 URA (우라늄)</a></div>
+                <div class="radio-5step"><label><input type="radio" name="ura" value="1"><span class="mark"></span></label><label><input type="radio" name="ura" value="0.75"><span class="mark"></span></label><label><input type="radio" name="ura" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="ura" value="0.25"><span class="mark"></span></label><label><input type="radio" name="ura" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://search.naver.com/search.naver?where=news&query=원전+수주" target="_blank" class="data-link">원전 정책/수주 호재</a></div>
+                <div class="radio-5step"><label><input type="radio" name="nuke_policy" value="1"><span class="mark"></span></label><label><input type="radio" name="nuke_policy" value="0.75"><span class="mark"></span></label><label><input type="radio" name="nuke_policy" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="nuke_policy" value="0.25"><span class="mark"></span></label><label><input type="radio" name="nuke_policy" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://finance.yahoo.com/quote/TSLA/" target="_blank" class="data-link">모빌리티 테슬라</a></div>
+                <div class="radio-5step"><label><input type="radio" name="tsla" value="1"><span class="mark"></span></label><label><input type="radio" name="tsla" value="0.75"><span class="mark"></span></label><label><input type="radio" name="tsla" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="tsla" value="0.25"><span class="mark"></span></label><label><input type="radio" name="tsla" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://search.naver.com/search.naver?where=news&query=현대차+SDV" target="_blank" class="data-link">현차그룹 SDV 정책</a></div>
+                <div class="radio-5step"><label><input type="radio" name="hmg_sdv" value="1"><span class="mark"></span></label><label><input type="radio" name="hmg_sdv" value="0.75"><span class="mark"></span></label><label><input type="radio" name="hmg_sdv" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="hmg_sdv" value="0.25"><span class="mark"></span></label><label><input type="radio" name="hmg_sdv" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/etfs/ishares-djsu-aerospace---defense" target="_blank" class="data-link">방산 ITA ETF</a></div>
+                <div class="radio-5step"><label><input type="radio" name="ita" value="1"><span class="mark"></span></label><label><input type="radio" name="ita" value="0.75"><span class="mark"></span></label><label><input type="radio" name="ita" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="ita" value="0.25"><span class="mark"></span></label><label><input type="radio" name="ita" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://kr.investing.com/etfs/powershares-aerospace---defense" target="_blank" class="data-link">방산 PPA ETF</a></div>
+                <div class="radio-5step"><label><input type="radio" name="ppa" value="1"><span class="mark"></span></label><label><input type="radio" name="ppa" value="0.75"><span class="mark"></span></label><label><input type="radio" name="ppa" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="ppa" value="0.25"><span class="mark"></span></label><label><input type="radio" name="ppa" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://finance.yahoo.com/quote/LMT/" target="_blank" class="data-link">방산 록히드마틴</a></div>
+                <div class="radio-5step"><label><input type="radio" name="lmt" value="1"><span class="mark"></span></label><label><input type="radio" name="lmt" value="0.75"><span class="mark"></span></label><label><input type="radio" name="lmt" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="lmt" value="0.25"><span class="mark"></span></label><label><input type="radio" name="lmt" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://search.naver.com/search.naver?where=news&query=K방산+수주" target="_blank" class="data-link">K-방산 수주 모멘텀</a></div>
+                <div class="radio-5step"><label><input type="radio" name="k_def" value="1"><span class="mark"></span></label><label><input type="radio" name="k_def" value="0.75"><span class="mark"></span></label><label><input type="radio" name="k_def" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="k_def" value="0.25"><span class="mark"></span></label><label><input type="radio" name="k_def" value="0"><span class="mark"></span></label></div></div>
+            </div>
+
+            <div class="card theme-risk">
+                <div class="card-header"><span class="icon-title">🛡️ 4. 리스크 통제 (Risk Mgmt)</span></div>
+                <div class="row" style="border-bottom:none; margin-bottom:5px;">
+                    <div class="label-group"><span class="label-title" style="color:#ffaa00;">[빅이벤트 D-1 헷지 모드]</span><span class="label-desc">내일이 주요 매크로 발표일입니까? (비중 강제 50% 삭감)</span></div>
+                    <div class="toggle-group" style="width:100px; align-self:flex-end;">
+                        <label class="toggle-label"><input type="radio" name="d_day_hedge" value="1"><span style="border-color:#ffaa00;color:#ffaa00;">ON</span></label>
+                        <label class="toggle-label"><input type="radio" name="d_day_hedge" value="0" checked><span>OFF</span></label>
+                    </div>
+                </div>
+                <div class="input-box input-highlight" style="border-color:#ffaa00; background:rgba(255,170,0,0.05); margin-top:10px;">
+                    <label style="color:#ffaa00; font-size:0.85rem;">🔒 계좌 총자산 대비 최대 허용 손실률 (%)</label>
+                    <input type="text" id="riskLimit" placeholder="예: 2 (2% 룰)" value="2" style="font-size:1.25rem; color:#ffdd00 !important;" autocomplete="off">
+                </div>
+            </div>
+
+            <div class="card theme-event">
+                <div class="card-header"><span class="icon-title">🚀 5. 메가 이벤트 드리븐</span></div>
+                <div class="scale-header"><span>대형호재</span><span>루머/유력</span><span>조용/관망</span><span>지연/부정</span><span>대형악재</span></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://search.naver.com/search.naver?where=news&query=데이터센터+전력" target="_blank" class="data-link">AI 인프라 특급 뉴스</a></div>
+                <div class="radio-5step"><label><input type="radio" name="news_ai_infra" value="1"><span class="mark"></span></label><label><input type="radio" name="news_ai_infra" value="0.75"><span class="mark"></span></label><label><input type="radio" name="news_ai_infra" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="news_ai_infra" value="0.25"><span class="mark"></span></label><label><input type="radio" name="news_ai_infra" value="0"><span class="mark"></span></label></div></div>
+                
+                <div class="row-5step"><div class="label-group"><a href="https://search.naver.com/search.naver?where=news&query=방산+원전+수주" target="_blank" class="data-link">방산/원전 메가 수주</a></div>
+                <div class="radio-5step"><label><input type="radio" name="news_export" value="1"><span class="mark"></span></label><label><input type="radio" name="news_export" value="0.75"><span class="mark"></span></label><label><input type="radio" name="news_export" value="0.5" checked><span class="mark"></span></label><label><input type="radio" name="news_export" value="0.25"><span class="mark"></span></label><label><input type="radio" name="news_export" value="0"><span class="mark"></span></label></div></div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span class="icon-title">📊 6. 리밸런싱 (수급/보유량/주가)</span></div>
+                
+                <div class="input-grid" style="margin-bottom:10px;">
+                    <div class="input-box input-highlight">
+                        <label><a href="https://finance.naver.com/sise/sise_trans_style.naver" target="_blank" class="data-link strong-link">외국인 현물 <순매수> (천주)</a></label>
+                        <div class="flex-inputs">
+                            <button type="button" class="btn-sign" onclick="toggleSign('spotVol')">+/-</button>
+                            <input type="text" id="spotVol" placeholder="수량 입력" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="input-box input-highlight">
+                        <label><a href="https://finance.naver.com/sise/investorDealTrendDay.naver?biztype=future" target="_blank" class="data-link strong-link">외국인 선물 <순매수> (계약)</a></label>
+                        <div class="flex-inputs">
+                            <button type="button" class="btn-sign" onclick="toggleSign('futuresVol')">+/-</button>
+                            <input type="text" id="futuresVol" placeholder="수량 입력" autocomplete="off">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-box input-highlight single-input" style="margin-bottom:15px; border-color:#00ffcc; background:rgba(0,255,204,0.05);">
+                    <label style="color:#00ffcc; font-size:0.85rem;">💰 신규 가용 현금 (원) - 비워두면 타점만 분석</label>
+                    <input type="text" id="totalCash" placeholder="입력 생략 가능" style="font-size:1.25rem;" autocomplete="off">
+                </div>
+                
+                <div class="input-grid">
+                    <div class="input-box"><label><a href="https://finance.naver.com/item/main.naver?code=000660" target="_blank" class="data-link strong-link" id="link1">SK하이닉스 (원)</a></label><div class="flex-inputs"><input type="text" id="p1" placeholder="현재가"><input type="text" id="h1" placeholder="보유수량"></div></div>
+                    <div class="input-box"><label><a href="https://finance.naver.com/item/main.naver?code=005930" target="_blank" class="data-link strong-link" id="link2">삼성전자 (원)</a></label><div class="flex-inputs"><input type="text" id="p2" placeholder="현재가"><input type="text" id="h2" placeholder="보유수량"></div></div>
+                    <div class="input-box"><label><a href="https://finance.naver.com/item/main.naver?code=034020" target="_blank" class="data-link strong-link" id="link3">두산에너빌리티 (원)</a></label><div class="flex-inputs"><input type="text" id="p3" placeholder="현재가"><input type="text" id="h3" placeholder="보유수량"></div></div>
+                    <div class="input-box"><label><a href="https://finance.naver.com/item/main.naver?code=307950" target="_blank" class="data-link strong-link" id="link4">현대오토에버 (원)</a></label><div class="flex-inputs"><input type="text" id="p4" placeholder="현재가"><input type="text" id="h4" placeholder="보유수량"></div></div>
+                    <div class="input-box"><label><a href="https://finance.naver.com/item/main.naver?code=449450" target="_blank" class="data-link strong-link sell-link" id="link5">PLUS K방산 (원)</a></label><div class="flex-inputs"><input type="text" id="p5" placeholder="현재가"><input type="text" id="h5" placeholder="보유수량"></div></div>
+                    
+                    <div class="input-box input-event">
+                        <label><a href="https://m.stock.naver.com/" target="_blank" class="data-link strong-link" style="color:#ff3366;">💡 사용자 발굴 종목</a></label>
+                        <input type="text" id="customName" placeholder="종목명 (예: 알테오젠)" style="text-align:left; font-size:0.95rem; margin-bottom:6px; padding-bottom:6px; border-bottom:1px dashed #ff3366; color:#ffdd00 !important; font-weight:800;" autocomplete="off">
+                        <div class="flex-inputs"><input type="text" id="pCustom" placeholder="현재가"><input type="text" id="hCustom" placeholder="보유수량"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card theme-ai">
+                <div class="card-header" style="justify-content: space-between;">
+                    <span class="icon-title">🤖 7. AI 주도주 스캔</span>
+                    <button type="button" class="btn-ai-scan" onclick="scanAIStocks()">🔄 종목 스캔</button>
+                </div>
+                <div class="input-box ai-slot" style="margin-bottom:0;">
+                    <label style="color:#cc33ff; font-size:0.85rem; margin-bottom:8px;">[종목 스캔] 버튼을 누르면 위 1~5번 슬롯이 시황에 맞는 최적의 주도주로 교체됩니다.<br><br>🔽 추가 분석을 원하시는 AI 추천주 <strong>현재가</strong>를 입력하세요.</label>
+                    <input type="text" id="pAI" placeholder="현재가 입력 (선택사항)">
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div id="loadingScreen">🤖 딥러닝 인공신경망 5단계 정밀 연산 중...</div>
+    <div id="resultBox"></div>
+
+    <div class="fab-container">
+        <button type="button" class="btn-reset" onclick="resetForm()">초기화</button>
+        <button type="button" class="btn-run" onclick="triggerAlgorithm()">🚀 AI 리밸런싱 타점 산출</button>
+    </div>
+
+    <script>
+        // 🔥 영구 보존 엔진: localStorage 기반
+        window.onload = function() {
+            const t = new Date();
+            document.getElementById('todayBadge').innerText = `${t.getFullYear()}.${String(t.getMonth() + 1).padStart(2, '0')}.${String(t.getDate()).padStart(2, '0')} (${['일','월','화','수','목','금','토'][t.getDay()]})`;
+            loadState(); 
+        };
+
+        function toggleSign(id) {
+            let el = document.getElementById(id);
+            if(!el) return;
+            let val = el.value.trim();
+            if(val === "") { el.value = "-"; return; }
+            if(val.startsWith("-")) { el.value = val.substring(1); } 
+            else { el.value = "-" + val; }
+            saveState();
+        }
+
+        function parseNum(id) {
+            let el = document.getElementById(id);
+            if(!el || !el.value) return 0;
+            let cleanVal = el.value.replace(/[^\d.-]/g, '');
+            if(cleanVal === "" || cleanVal === "-" || cleanVal === ".") return 0;
+            let val = parseFloat(cleanVal);
+            return isNaN(val) ? 0 : val;
+        }
+
+        function saveState() {
+            const inputs = document.querySelectorAll('input[type="radio"]:checked, input[type="text"]');
+            const state = {};
+            inputs.forEach(input => {
+                if(input.type === 'radio') { state[input.name] = input.value; } 
+                else { state[input.id] = input.value; }
+            });
+            for(let i=1; i<=5; i++) {
+                let linkEl = document.getElementById('link'+i);
+                if(linkEl) {
+                    state['label'+i] = linkEl.innerText;
+                    state['href'+i] = linkEl.href;
+                }
+            }
+            localStorage.setItem('quantAppProState', JSON.stringify(state)); // 영구 저장
+        }
+
+        function loadState() {
+            try {
+                const saved = localStorage.getItem('quantAppProState');
+                if (saved) {
+                    const state = JSON.parse(saved);
+                    for (const key in state) {
+                        const el = document.getElementById(key);
+                        if (el && el.type === 'text') { el.value = state[key]; } 
+                        else if (document.querySelector(`input[name="${key}"][value="${state[key]}"]`)) {
+                            document.querySelector(`input[name="${key}"][value="${state[key]}"]`).checked = true;
+                        }
+                    }
+                    for(let i=1; i<=5; i++) {
+                        if(state['label'+i]) {
+                            let linkEl = document.getElementById('link'+i);
+                            if(linkEl) {
+                                linkEl.innerText = state['label'+i];
+                                linkEl.href = state['href'+i];
+                            }
+                        }
+                    }
+                }
+            } catch(e) { console.error("Load error:", e); }
+        }
+
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('change', saveState);
+            if(input.type === 'text') input.addEventListener('input', saveState);
+        });
+
+        function resetForm() {
+            if(!confirm("영구 보존된 모든 데이터가 삭제됩니다.\n초기화하시겠습니까?")) return;
+            localStorage.removeItem('quantAppProState'); 
+            location.reload();
+        }
+
+        function fmt(num) { return new Intl.NumberFormat('ko-KR').format(Math.round(num)); }
+        
+        function getVal(name) {
+            const r = document.getElementsByName(name);
+            if (!r || r.length === 0) return 0.5;
+            for (let i = 0; i < r.length; i++) if (r[i].checked) return parseFloat(r[i].value);
+            return 0.5; 
+        }
+        
+        function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+
+        function scanAIStocks() {
+            try {
+                const sox=getVal('sox'), nvda=getVal('nvda'), tsm=getVal('tsm'), mu=getVal('mu'), avgo=getVal('avgo'), wdc=getVal('wdc');
+                const nxt=getVal('etn'), ura=getVal('ura'), nuke_policy=getVal('nuke_policy');
+                const tsla=getVal('tsla'), hmg_sdv=getVal('hmg_sdv');
+                const ita=getVal('ita'), ppa=getVal('ppa'), lmt=getVal('lmt'), k_def=getVal('k_def');
+                const geo=getVal('geo'), vix=getVal('vix'), vkospi=getVal('vkospi');
+                const news_ai_infra=getVal('news_ai_infra'), news_export=getVal('news_export');
+
+                let geoScore = 1 - geo; let vixScore = 1 - vix; let vkospiScore = 1 - vkospi;
+
+                let scores = [
+                    { sector: 'semi', score: sox + nvda + tsm + mu + avgo + wdc + (news_ai_infra * 0.5) },
+                    { sector: 'defense', score: ita + ppa + lmt + k_def + geoScore + vixScore + (news_export * 1.5) },
+                    { sector: 'energy', score: nxt + ura + nuke_policy + (news_ai_infra * 1.5) + (news_export * 1.5) },
+                    { sector: 'auto', score: tsla + hmg_sdv + (news_ai_infra * 1.0) },
+                    { sector: 'bio', score: vixScore + vkospiScore + 1.0 } 
+                ];
+
+                scores.sort((a,b) => b.score - a.score);
+
+                const UNIVERSE = {
+                    semi: [ {n:"SK하이닉스 (원)", c:"000660"}, {n:"한미반도체 (원)", c:"042700"} ],
+                    defense: [ {n:"현대로템 (원)", c:"064350"}, {n:"LIG넥스원 (원)", c:"079550"} ],
+                    energy: [ {n:"두산에너빌리티 (원)", c:"034020"}, {n:"HD현대일렉트릭 (원)", c:"267260"} ],
+                    auto: [ {n:"기아 (원)", c:"000270"}, {n:"현대오토에버 (원)", c:"314390"} ],
+                    bio: [ {n:"알테오젠 (원)", c:"196170"}, {n:"삼성바이오로직스 (원)", c:"207940"} ]
+                };
+
+                let picked = [];
+                picked.push(UNIVERSE[scores[0].sector][0]);
+                picked.push(UNIVERSE[scores[0].sector][1]);
+                picked.push(UNIVERSE[scores[1].sector][0]);
+                picked.push(UNIVERSE[scores[1].sector][1]);
+                picked.push(UNIVERSE[scores[2].sector][0]);
+
+                for(let i=0; i<5; i++) {
+                    let linkEl = document.getElementById('link'+(i+1));
+                    linkEl.innerText = picked[i].n;
+                    linkEl.href = `https://finance.naver.com/item/main.naver?code=${picked[i].c}`;
+                    document.getElementById('p'+(i+1)).value = "";
+                    document.getElementById('h'+(i+1)).value = "";
+                }
+                saveState();
+                alert("📈 현재 시황에 맞는 최적의 주도주 5개로 슬롯이 업데이트 되었습니다.\n\n현재가와 보유수량을 입력 후 타점을 산출해보세요!");
+            } catch(e) {
+                alert("스캔 중 오류 발생: " + e.message);
+            }
+        }
+
+        function triggerAlgorithm() {
+            if(document.activeElement && typeof document.activeElement.blur === 'function') {
+                document.activeElement.blur(); 
+            }
+            document.getElementById('resultBox').style.display = 'none';
+            document.getElementById('loadingScreen').style.display = 'block';
+            
+            setTimeout(() => {
+                try {
+                    runAbsoluteQuant();
+                    document.getElementById('loadingScreen').style.display = 'none';
+                } catch(e) {
+                    document.getElementById('loadingScreen').style.display = 'none';
+                    alert("⚠️ 퀀트 연산 중 시스템 오류가 발생했습니다.\n\n(에러 상세: " + e.message + ")");
+                }
+            }, 100); 
+        }
+
+        function runAbsoluteQuant() {
+            const sox=getVal('sox'), nvda=getVal('nvda'), tsm=getVal('tsm'), mu=getVal('mu'), avgo=getVal('avgo'), wdc=getVal('wdc');
+            const ndx=getVal('ndx'), aapl=getVal('aapl');
+            const btc=getVal('btc'), fx=getVal('fx'), yield_rate=getVal('yield_rate'), wti=getVal('wti'), copper=getVal('copper'), geo=getVal('geo'), vix=getVal('vix'), vkospi=getVal('vkospi');
+            const ewy=getVal('ewy'), nq_fut=getVal('nq_fut'), es_fut=getVal('es_fut');
+            const etn=getVal('etn'), ura=getVal('ura'), nuke_policy=getVal('nuke_policy');
+            const tsla=getVal('tsla'), hmg_sdv=getVal('hmg_sdv');
+            const ita=getVal('ita'), ppa=getVal('ppa'), lmt=getVal('lmt'), k_def=getVal('k_def');
+            const news_ai_infra=getVal('news_ai_infra'), news_export=getVal('news_export');
+
+            const isDDayHedge = getVal('d_day_hedge') === 1;
+            const riskLimit = parseNum('riskLimit') || 2; 
+
+            let spotInput = parseNum('spotVol');
+            let futInput = parseNum('futuresVol');
+            
+            const cash = parseNum('totalCash'); 
+            
+            const p1 = parseNum('p1'); const h1 = parseNum('h1');
+            const p2 = parseNum('p2'); const h2 = parseNum('h2');
+            const p3 = parseNum('p3'); const h3 = parseNum('h3');
+            const p4 = parseNum('p4'); const h4 = parseNum('h4');
+            const p5 = parseNum('p5'); const h5 = parseNum('h5');
+            const pC = parseNum('pCustom'); const hC = parseNum('hCustom');
+
+            const name1 = document.getElementById('link1').innerText.replace(' (원)','');
+            const name2 = document.getElementById('link2').innerText.replace(' (원)','');
+            const name3 = document.getElementById('link3').innerText.replace(' (원)','');
+            const name4 = document.getElementById('link4').innerText.replace(' (원)','');
+            const name5 = document.getElementById('link5').innerText.replace(' (원)','');
+
+            const cName = document.getElementById('customName').value || "";
+            const useCustom = (cName !== ""); 
+
+            const pAI = parseNum('pAI'); 
+
+            const totalAsset = cash + (p1*h1) + (p2*h2) + (p3*h3) + (p4*h4) + (p5*h5) + (pC*hC);
+
+            // 🧠 5단계 정밀 스코어링 (역방향 1-x 적용)
+            const semiScore = sox + nvda + tsm + mu + avgo + wdc + (news_ai_infra * 0.5); 
+            const techScore = ndx + aapl + nq_fut + es_fut + btc; 
+            
+            let geoScore = 1 - geo;
+            let vixScore = 1 - vix;
+            let vkospiScore = 1 - vkospi;
+            let fxScore = 1 - fx;
+            let yieldScore = 1 - yield_rate;
+            let wtiScore = 1 - wti;
+            
+            const macroScore = fxScore + yieldScore + wtiScore + copper; 
+            const fearScore = vixScore + vkospiScore; 
+            
+            let spotScore = spotInput > 0 ? 1 : (spotInput < 0 ? 0 : 0.5);
+            let futScore = futInput > 0 ? 1 : (futInput < 0 ? 0 : 0.5);
+            const koreaScore = ewy + spotScore + futScore; 
+            
+            const dusanScore = etn + ura + nuke_policy + (news_ai_infra * 1.5) + (news_export * 1.5); 
+            const autoScore = tsla + hmg_sdv + (news_ai_infra * 1.0); 
+            const defenseScore = ita + ppa + lmt + k_def + geoScore + vixScore + (news_export * 1.5); 
+
+            let node_semi = (semiScore/6.5) * 2 - 1; 
+            let node_macro = ((macroScore + geoScore + fearScore)/7) * 2 - 1; 
+            let node_infra = (dusanScore/6) * 2 - 1;
+            let node_kor = (koreaScore/3) * 2 - 1;
+
+            let prob_bull = sigmoid(node_semi*1.5 + node_macro*1.0 + node_kor*1.0) * 100;
+            let prob_rotation = sigmoid(-node_semi*1.0 + node_infra*1.5 + node_macro*0.5) * 100;
+            let prob_panic = sigmoid(-node_macro*2.0 - node_kor*1.0) * 100;
+
+            let total_prob = prob_bull + prob_rotation + prob_panic + 20; 
+            prob_bull = (prob_bull / total_prob) * 100;
+            prob_rotation = (prob_rotation / total_prob) * 100;
+            prob_panic = (prob_panic / total_prob) * 100;
+
+            let max_prob = Math.max(prob_bull, prob_rotation, prob_panic);
+            let confidence = Math.max(0, max_prob - ((100 - max_prob)/2)); 
+            
+            let kellyFactor = confidence > 40 ? 1.0 : (confidence > 20 ? 0.8 : 0.6); 
+            if (isDDayHedge) kellyFactor *= 0.5; // D-Day 헷지 50% 삭감
+
+            let vol_multiplier = 1.0;
+            if (fearScore <= 0.5) { vol_multiplier = 0.8; } 
+            else if (fearScore <= 1.5) { vol_multiplier = 1.1; } 
+            else { vol_multiplier = 1.5; } 
+
+            const res = document.getElementById('resultBox');
+            res.style.display = 'block';
+
+            let w1=0, w2=0, w3=0, w4=0, w5=0, wC=0, wAI=0; 
+            let aiName = "";
+            let marketContext = "neutral";
+            let allocRatio = (kellyFactor * 100); 
+
+            // 동적 맵핑된 종목에 비중 할당 (섹터 기반)
+            if (prob_panic > 40 || geoScore >= 0.75 || fearScore >= 1.5) {
+                marketContext = "panic"; 
+                w5 = allocRatio * 0.50; 
+                wAI = allocRatio * 0.50;
+                aiName = "LIG넥스원 (AI: 방산 헷지)"; 
+            } else if (prob_bull > prob_rotation && prob_bull > 35) {
+                marketContext = "bull"; 
+                w1 = allocRatio * 0.30; w2 = allocRatio * 0.20; w3 = allocRatio * 0.15; w4 = allocRatio * 0.15;
+                if(useCustom) { wC = allocRatio * 0.10; wAI = allocRatio * 0.10; } 
+                else { wAI = allocRatio * 0.20; wC = 0; }
+                aiName = "한미반도체 (AI: HBM 대장)";
+            } else if (prob_rotation > 35 || defenseScore >= 3.5 || dusanScore >= 3.5) {
+                marketContext = "rotation"; 
+                w1 = allocRatio * 0.10; w2 = allocRatio * 0.10; w3 = allocRatio * 0.20; w4 = allocRatio * 0.20;
+                
+                if (defenseScore >= 3.5 && news_export >= 0.5) {
+                    w5 = allocRatio * 0.15; wAI = allocRatio * 0.15; wC = useCustom ? allocRatio * 0.10 : 0;
+                    aiName = "현대로템 (AI: 방산 수출)"; 
+                } else if (dusanScore >= 3.5) {
+                    w3 += allocRatio * 0.10; wAI = allocRatio * 0.20; wC = useCustom ? allocRatio * 0.10 : 0;
+                    aiName = "HD현대일렉트릭 (AI: 전력 인프라)"; 
+                } else {
+                    w3 += allocRatio * 0.15; w4 += allocRatio * 0.15; wAI = allocRatio * 0.10; wC = useCustom ? allocRatio * 0.10 : 0;
+                    aiName = "알테오젠 (AI: 바이오 헷지)";
+                }
+                
+                let assigned = w1 + w2 + w3 + w4 + w5 + wAI + wC;
+                if(assigned < allocRatio) { w1 += (allocRatio - assigned) / 2; w2 += (allocRatio - assigned) / 2; }
+            } else {
+                marketContext = "neutral";
+                w1 = allocRatio * 0.15; w2 = allocRatio * 0.15; w3 = allocRatio * 0.15; w4 = allocRatio * 0.15; w5 = allocRatio * 0.10;
+                wC = useCustom ? allocRatio * 0.10 : 0;
+                wAI = allocRatio - (w1 + w2 + w3 + w4 + w5 + wC);
+                aiName = "삼성바이오로직스 (AI: 관망 방어주)"; 
+            }
+
+            // 자산별 고유 베타(β) 적용
+            let t1 = 1 + (0.04 * vol_multiplier * 1.4); let s1 = 1 - (0.02 * vol_multiplier * 1.4);
+            let t2 = 1 + (0.03 * vol_multiplier * 1.1); let s2 = 1 - (0.015 * vol_multiplier * 1.1); 
+            let t3 = 1 + (0.05 * vol_multiplier * 1.3); let s3 = 1 - (0.025 * vol_multiplier * 1.3);
+            let t4 = 1 + (0.045 * vol_multiplier * 1.2); let s4 = 1 - (0.025 * vol_multiplier * 1.2);
+            let t5 = 1 + (0.03 * vol_multiplier * 0.8); let s5 = 1 - (0.015 * vol_multiplier * 0.8);
+            let tC = 1 + (0.05 * vol_multiplier * 1.0); let sC = 1 - (0.03 * vol_multiplier * 1.0);
+            let aiTgt = 1 + (0.06 * vol_multiplier * 1.2); let aiStp = 1 - (0.03 * vol_multiplier * 1.2);
+
+            t3 += (0.02 * news_ai_infra); t4 += (0.015 * news_ai_infra); t1 += (0.01 * news_ai_infra);
+            t3 += (0.02 * news_export); t5 += (0.02 * news_export); aiTgt += (0.02 * news_export);
+
+            if (marketContext === "panic") { 
+                t1=t2=t3=t4=tC=0; t5 = 1 + (0.08 * vol_multiplier); s5 = 1 - (0.04 * vol_multiplier); 
+                aiTgt = 1 + (0.08 * vol_multiplier); aiStp = 1 - (0.04 * vol_multiplier);
+            }
+
+            const getExecution = (context, isEventOn, ratio) => {
+                if(ratio <= 0) return "🚫 매수 보류 (관망)";
+                if(context === "panic") return "투매 시 분할줍기";
+                if(isEventOn >= 0.75) return "시초가 추격매수"; 
+                if(context === "bull") return "오전 눌림목 진입";
+                if(context === "rotation") return "돌파 시 분할매수";
+                return "종가 베팅 대기"; 
+            };
+
+            const getWinRate = (score, maxS, hasEvent) => {
+                let base = 50; let boost = (score / maxS) * 30; let kellyBoost = (kellyFactor - 0.6) * 15; 
+                let eventBoost = (hasEvent >= 0.75) ? 10 : (hasEvent >= 0.5 ? 5 : 0); 
+                return Math.min(96.5, base + boost + kellyBoost + eventBoost).toFixed(1);
+            };
+
+            // 🔥 2% 룰 MDD 방어 시뮬레이션 (수수료 0.23%)
+            const FEE_RATE = 0.0023; 
+            let preCalcLoss = 0;
+            let riskShrinkFactor = 1.0;
+            
+            if (totalAsset > 0) {
+                let checkLoss = (p, h, tgt, stp, ratio) => {
+                    if (p <= 0 || ratio <= 0) return 0;
+                    let targetVal = totalAsset * (ratio / 100);
+                    let diffVal = targetVal - (p * h);
+                    let actionQty = Math.round(diffVal / p);
+                    let targetQty = h + actionQty;
+                    if(targetQty <= 0) return 0;
+                    
+                    let buyBasis = targetQty * p;
+                    let sellValStp = Math.floor(p * stp) * targetQty;
+                    return Math.floor((buyBasis - sellValStp) + (sellValStp * FEE_RATE));
+                };
+                preCalcLoss += checkLoss(p1, h1, t1, s1, w1) + checkLoss(p2, h2, t2, s2, w2) + 
+                               checkLoss(p3, h3, t3, s3, w3) + checkLoss(p4, h4, t4, s4, w4) + 
+                               checkLoss(p5, h5, t5, s5, w5) + checkLoss(pC, hC, tC, sC, wC) + 
+                               checkLoss(pAI, 0, aiTgt, aiStp, wAI);
+
+                let maxAllowedLoss = totalAsset * (riskLimit / 100);
+                if (preCalcLoss > maxAllowedLoss && preCalcLoss > 0) {
+                    riskShrinkFactor = maxAllowedLoss / preCalcLoss;
+                    w1 *= riskShrinkFactor; w2 *= riskShrinkFactor; w3 *= riskShrinkFactor;
+                    w4 *= riskShrinkFactor; w5 *= riskShrinkFactor; wC *= riskShrinkFactor; wAI *= riskShrinkFactor;
+                }
+            }
+
+            let summaryHTML = "";
+            let marketColor = "#ff9900";
+            if (marketContext === "panic") {
+                marketColor = "#ff4444";
+                summaryHTML = `<span style="color:#ff4444; font-size:1.15rem; font-weight:800;">🚨 매크로 붕괴 (방산 헷지 집중)</span><br><span style="font-size:0.85rem; color:#aaa;">패닉장 돌입. 방산 외 일반 주식을 전면 차단합니다.</span>`;
+            }
+            else if (marketContext === "bull") {
+                marketColor = "#00ffcc";
+                summaryHTML = `<span style="color:#00ffcc; font-size:1.15rem; font-weight:800;">🔥 리스크 온 (주도주 강세장)</span><br><span style="font-size:0.85rem; color:#aaa;">상승장. 목표 비중을 채워 공격적으로 투입합니다.</span>`;
+            }
+            else if (marketContext === "rotation") {
+                marketColor = "#ff9900";
+                summaryHTML = `<span style="color:#ff9900; font-size:1.15rem; font-weight:800;">🔄 테마 순환매 (이벤트 드리븐)</span><br><span style="font-size:0.85rem; color:#aaa;">뉴스 수혜 섹터에 자본을 집중합니다.</span>`;
+            }
+            else {
+                marketColor = "#a0aec0";
+                summaryHTML = `<span style="color:#a0aec0; font-size:1.15rem; font-weight:800;">⚖️ 중립 혼조세 (비중 축소 방어)</span><br><span style="font-size:0.85rem; color:#aaa;">방향성이 모호합니다. 현금을 확보하고 보수적으로 운용합니다.</span>`;
+            }
+
+            res.style.borderLeftColor = marketColor;
+
+            // 🧠 산출 시각 추가
+            const now = new Date();
+            const timeStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+            let logHTML = `
+                <div class="engine-log">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                        <span style="font-weight:bold;">[Quantum Core Engine Log]</span>
+                        <span class="timestamp">산출 시각: ${timeStr}</span>
+                    </div>
+                    <div>> Regime: <span class="info">${marketContext.toUpperCase()}</span> (Bull:${prob_bull.toFixed(1)}%)</div>
+                    <div>> Kelly Factor (f*): <span class="info">${(kellyFactor).toFixed(2)}x</span></div>
+                    <div>> Asset Volatility Beta (β): <span class="info">Active</span></div>
+                    <div>> Event D-1 Hedge: ${isDDayHedge ? '<span class="alert">ON (Risk 50% Cut)</span>' : '<span class="info">OFF</span>'}</div>
+                    <div>> MDD VaR Control: ${riskShrinkFactor < 1.0 ? `<span class="alert">Shrink ${(riskShrinkFactor*100).toFixed(1)}%</span>` : `<span class="info">Pass</span>`}</div>
+                </div>
+            `;
+
+            let dlPanelHTML = `
+                ${logHTML}
+                <div class="dl-panel" style="border-left: 4px solid ${marketColor};">
+                    <div style="margin-bottom:15px; padding-bottom:12px; border-bottom:1px solid #2d3748;">${summaryHTML}</div>
+                    <div class="dl-label"><span>상승 확률</span><span class="c-buy">${prob_bull.toFixed(1)}%</span></div>
+                    <div class="dl-bar-wrap"><div class="dl-bar" style="width: ${prob_bull}%; background: #00ffcc;"></div></div>
+                    <div class="dl-label"><span>이슈/테마 확률</span><span class="c-warn">${prob_rotation.toFixed(1)}%</span></div>
+                    <div class="dl-bar-wrap"><div class="dl-bar" style="width: ${prob_rotation}%; background: #ff9900;"></div></div>
+                    <div class="dl-label"><span>하락/패닉 확률</span><span class="c-sell">${prob_panic.toFixed(1)}%</span></div>
+                    <div class="dl-bar-wrap"><div class="dl-bar" style="width: ${prob_panic}%; background: #ff4444;"></div></div>
+                </div>
+            `;
+
+            let totalExpectedProfit = 0;
+            let totalMaxLoss = 0;
+            let totalActualInvestAmt = 0; // 투자 집행 총액 
+
+            const makeRow = (name, p, h, tgt, stp, isDef, ratio, typeClass, execStr, winRate, eventScore, isAI) => {
+                let tgtPct = ((tgt - 1) * 100).toFixed(1);
+                let stpPct = ((stp - 1) * 100).toFixed(1);
+
+                let priceStr = p > 0 ? fmt(p) + `원<br><span style="font-size:0.75rem; color:#aaa;">보유: ${h}주</span>` : `<span style="color:#ff4444; font-size:0.85rem; font-weight:bold;">미입력</span>`;
+                let scaleInPrice = p > 0 ? Math.floor(p * (1 + (tgt - 1) * 0.5)) : 0;
+                let tsPrice = p > 0 ? Math.floor(p * tgt * 0.985) : 0;
+
+                let tgtStr = p > 0 ? `<span class="${ratio>0?'c-buy':''}">${fmt(Math.floor(p*tgt))}</span><br><span style="font-size:0.7rem; color:#ff9900;">🔥불타기: ${fmt(scaleInPrice)}</span>` : `<span class="${ratio>0?'c-buy':''}">${tgtPct}%</span>`;
+                let stpStr = p > 0 ? `<span class="${ratio>0?'c-sell':''}">${fmt(Math.floor(p*stp))}</span><br><span style="font-size:0.7rem; color:#00ffcc;">🛡️TS: ${fmt(tsPrice)}</span>` : `<span class="${ratio>0?'c-sell':''}">${stpPct}%</span>`;
+                
+                let investStr = "-", qtyStr = "-";
+                let rowStyle = ratio <= 0 ? 'opacity: 0.55;' : '';
+
+                if(p > 0 && totalAsset > 0) {
+                    let targetVal = totalAsset * (ratio / 100);
+                    let diffVal = targetVal - (p * h);
+                    let actionQty = Math.round(diffVal / p);
+                    let targetQty = h + actionQty; 
+                    if(targetQty < 0) { actionQty = -h; targetQty = 0; } 
+                    
+                    let actualInvest = actionQty * p; 
+                    totalActualInvestAmt += (targetQty * p); // 최종 목표수량 * 가격의 총합
+                    
+                    let sellValTgt = Math.floor(p * tgt) * targetQty;
+                    let sellValStp = Math.floor(p * stp) * targetQty;
+                    let buyBasis = targetQty * p;
+                    
+                    let expProfit = Math.floor((sellValTgt - buyBasis) - (sellValTgt * FEE_RATE));
+                    let expLoss = Math.floor((buyBasis - sellValStp) + (sellValStp * FEE_RATE)); 
+                    
+                    if(targetQty > 0) {
+                        totalExpectedProfit += expProfit;
+                        totalMaxLoss += expLoss;
+                        tgtStr += `<br><span style="font-size:0.75rem; color:#00ffcc;">+${fmt(expProfit)}원</span>`;
+                        stpStr += `<br><span style="font-size:0.75rem; color:#ff4444;">-${fmt(expLoss)}원</span>`;
+                    } else {
+                        tgtStr += `<br><span style="font-size:0.75rem; color:#00ffcc;">+${tgtPct}%</span>`;
+                        stpStr += `<br><span style="font-size:0.75rem; color:#ff4444;">${stpPct}%</span>`;
+                    }
+
+                    if(actionQty > 0) {
+                        qtyStr = `<span style="color:#00ffcc;">+${fmt(actionQty)}주 (매수)</span>`;
+                        investStr = `<span style="color:#00ffcc;">+${fmt(actualInvest)}원</span>`;
+                    } else if(actionQty < 0) {
+                        qtyStr = `<span style="color:#ff4444;">${fmt(actionQty)}주 (매도)</span>`;
+                        investStr = `<span style="color:#ff4444;">${fmt(actualInvest)}원</span>`;
+                    } else {
+                        qtyStr = ratio <= 0 ? `<span style="color:#718096;">배정 안됨</span>` : `<span style="color:#aaa;">보유 유지</span>`;
+                        investStr = ratio <= 0 ? "" : `<span style="color:#aaa;">0원</span>`;
+                    }
+                } else if(p <= 0) {
+                    qtyStr = ratio <= 0 ? `<span style="color:#718096;">배정 안됨</span>` : `<span style="color:#00ffcc;">목표 ${ratio.toFixed(0)}%</span>`;
+                }
+
+                let hasEvent = eventScore >= 0.5;
+                let c = isDef ? 'bg-event' : (hasEvent ? 'bg-event' : '');
+                if (ratio <= 0) c = ''; 
+                
+                let nameClass = typeClass === 'custom-slot' ? 'txt-event' : (typeClass === 'ai-slot' ? 'txt-ai' : 'txt-semi');
+                if(typeClass === '') nameClass = '';
+                
+                let wrColor = ratio <= 0 ? '#718096' : (winRate >= 80 ? 'c-buy' : (winRate >= 70 ? 'c-warn' : ''));
+                let badgeStyle = ratio <= 0 ? 'background:#4a5568;border-color:#4a5568;color:#ccc;' : (hasEvent?'background:#ff3366;border-color:#ff3366;':'');
+
+                // 네이버 딥링크 정규식 오류 방지
+                let nameLink = name;
+                if(isAI || typeClass === 'custom-slot') {
+                    let cleanName = name.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '').replace(/AI.*/, '').replace(/\(.*\)/g, '').trim(); 
+                    nameLink = `<a href="https://m.stock.naver.com/search/stock/${encodeURIComponent(cleanName)}" target="_blank" style="color:inherit; text-decoration:underline dashed;">${name} ↗</a>`;
+                }
+
+                // 무조건 렌더링
+                return `<tr class="${c}" style="${rowStyle}">
+                    <td class="${nameClass}" style="text-align:left;">
+                        ${nameLink}${hasEvent && ratio > 0 ?' 🚀':''}<br><span class="badge" style="${badgeStyle}">${execStr}</span>
+                    </td>
+                    <td>${priceStr}</td>
+                    <td style="line-height:1.4;">${tgtStr}</td>
+                    <td style="line-height:1.4;">${stpStr}</td>
+                    <td class="${wrColor}">${winRate}%<br><span style="font-size:0.75rem; color:#a0aec0;">목표 ${ratio.toFixed(0)}%</span></td>
+                    <td style="font-weight:bold; letter-spacing:-0.5px; line-height:1.4;">${qtyStr}<br><span style="font-size:0.75rem;">${investStr}</span></td>
+                </tr>`;
+            };
+
+            let tb = `<div class="table-responsive"><table>
+                <tr>
+                    <th>종목명 / 타이밍</th>
+                    <th>현재가(보유)</th>
+                    <th>목표가(수익)<br><span style="font-size:0.7rem; color:#ff9900; font-weight:normal;">🔥불타기 타점</span></th>
+                    <th>손절가(손실)<br><span style="font-size:0.7rem; color:#00ffcc; font-weight:normal;">🛡️수익보존(TS)</span></th>
+                    <th>승률/목표비중</th>
+                    <th>리밸런싱 대응</th>
+                </tr>`;
+            
+            let bSemiEvent = news_ai_infra;
+            let bDusanEvent = Math.max(news_ai_infra, news_export);
+            let bAutoEvent = news_ai_infra;
+            let bDefEvent = news_export;
+
+            if (marketContext === "panic") { w1=w2=w3=w4=wC=0; } 
+
+            tb += makeRow(name1, p1, h1, t1, s1, false, w1, '', getExecution(marketContext, bSemiEvent, w1), getWinRate(semiScore, 6.5, bSemiEvent), bSemiEvent, false);
+            tb += makeRow(name2, p2, h2, t2, s2, false, w2, '', getExecution(marketContext, 0, w2), getWinRate(semiScore-1, 6.5, 0), 0, false);
+            tb += makeRow(name3, p3, h3, t3, s3, false, w3, '', getExecution(marketContext, bDusanEvent, w3), getWinRate(dusanScore, 6, bDusanEvent), bDusanEvent, false);
+            tb += makeRow(name4, p4, h4, t4, s4, false, w4, '', getExecution(marketContext, bAutoEvent, w4), getWinRate(autoScore, 3, bAutoEvent), bAutoEvent, false);
+            tb += makeRow(name5, p5, h5, t5, s5, (prob_panic>40), w5, '', getExecution(prob_panic>40?"bull":"neutral", bDefEvent, w5), getWinRate(defenseScore, 7.5, bDefEvent), bDefEvent, false);
+            
+            if(useCustom) tb += makeRow(`💡 ${cName}`, pC, hC, tC, sC, false, wC, 'custom-slot', getExecution(marketContext, 0, wC), getWinRate(techScore, 5, 0), 0, true);
+            
+            let aiEvent = (aiName.includes("LIG") || aiName.includes("현대로템") ? bDefEvent : (aiName.includes("현대일렉") ? bDusanEvent : bSemiEvent));
+            tb += makeRow(`🤖 ${aiName}`, pAI, 0, aiTgt, aiStp, false, wAI, 'ai-slot', getExecution(marketContext, aiEvent, wAI), getWinRate(6, 6, aiEvent), aiEvent, true); 
+
+            tb += `</table></div>`;
+
+            let rrr = totalMaxLoss > 0 ? (totalExpectedProfit / totalMaxLoss).toFixed(2) : 0;
+            let currentLossPct = totalAsset > 0 ? ((totalMaxLoss / totalAsset) * 100).toFixed(1) : 0;
+            let expectedRemainingCash = totalAsset > 0 ? totalAsset - totalActualInvestAmt : 0;
+            
+            let summaryDashboard = "";
+            if(totalAsset > 0) {
+                summaryDashboard = `
+                    <div class="portfolio-summary">
+                        <div class="port-item" style="flex-basis: 100%; border-bottom:1px solid #2d3748; padding-bottom:10px; margin-bottom:5px;">
+                            <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                                <span style="color:#a0aec0;">총 투자 집행 금액:</span><span style="font-weight:bold; color:#fff;">${fmt(totalActualInvestAmt)}원</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-top:4px;">
+                                <span style="color:#a0aec0;">리밸런싱 후 잔여 현금:</span><span style="font-weight:bold; color:#00ffcc;">${fmt(expectedRemainingCash)}원</span>
+                            </div>
+                        </div>
+                        <div class="port-item"><div class="port-title">총 기대 수익 (세금제외)</div><div class="port-val c-buy">+${fmt(totalExpectedProfit)}원</div></div>
+                        <div class="port-item"><div class="port-title">총 최대 리스크 (${currentLossPct}%)</div><div class="port-val c-sell">-${fmt(totalMaxLoss)}원</div></div>
+                        <div class="port-item"><div class="port-title">투자 손익비 (RRR)</div><div class="port-val c-warn">${rrr} 배</div></div>
+                    </div>
+                `;
+            }
+
+            res.innerHTML = dlPanelHTML + tb + summaryDashboard;
+            setTimeout(() => { res.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+        }
+    </script>
+</body>
+</html>
